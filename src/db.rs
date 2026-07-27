@@ -12,7 +12,40 @@ pub fn init_db(conn: &Connection) -> Result<()> {
         )",
         [],
     )?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS users (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            username        TEXT NOT NULL UNIQUE,
+            password_hash   TEXT NOT NULL
+        )",
+        [],
+    )?;
     Ok(())
+}
+
+pub fn count_users(conn: &Connection) -> Result<i64> {
+    conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))
+}
+
+pub fn create_user(conn: &Connection, username: &str, password_hash: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO users (username, password_hash) VALUES (?1, ?2)",
+        params![username, password_hash],
+    )?;
+    Ok(())
+}
+
+pub fn get_user_password_hash(conn: &Connection, username: &str) -> Result<Option<String>> {
+    conn.query_row(
+        "SELECT password_hash FROM users WHERE username = ?1",
+        params![username],
+        |row| row.get(0),
+    )
+    .map(Some)
+    .or_else(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => Ok(None),
+        e => Err(e),
+    })
 }
 
 pub fn list_links(conn: &Connection, search: Option<&str>) -> Result<Vec<Link>> {

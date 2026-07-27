@@ -113,13 +113,48 @@
   a.link-url:hover { text-decoration: underline; }
   .empty { color: var(--muted); text-align: center; padding: 2rem 0; }
   .form-actions { margin-top: 1rem; display: flex; gap: 0.6rem; }
+  .auth-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .auth-bar button { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+  .login-card .row { align-items: flex-end; }
+  .login-card button { flex: 0 0 auto; }
+  .error-text { color: var(--danger); font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.1em; }
+  .hint { color: var(--muted); font-size: 0.85rem; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>linkrs</h1>
 
-  <div class="card">
+  <div class="auth-bar">
+    <span id="auth-status"></span>
+    <button type="button" class="secondary" id="logout-btn" style="display:none">Log out</button>
+  </div>
+
+  <div class="card login-card" id="login-card">
+    <form id="login-form">
+      <div class="row">
+        <div>
+          <label for="login-username">Username</label>
+          <input type="text" id="login-username" required autocomplete="username">
+        </div>
+        <div>
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" required autocomplete="current-password">
+        </div>
+        <button type="submit">Log in</button>
+      </div>
+      <div class="error-text" id="login-error"></div>
+    </form>
+  </div>
+
+  <div class="card" id="link-form-card" style="display:none">
     <form id="link-form">
       <input type="hidden" id="link-id">
       <div class="row">
@@ -137,6 +172,10 @@
         <button type="button" class="secondary" id="cancel-btn" style="display:none">Cancel</button>
       </div>
     </form>
+  </div>
+
+  <div class="hint" id="readonly-hint" style="display:none; margin-bottom:1.25rem;">
+    Log in above to add, edit, or delete links.
   </div>
 
   <div class="search">
@@ -170,7 +209,19 @@ const searchBox = document.getElementById('search-box');
 const rowsBody = document.getElementById('link-rows');
 const emptyState = document.getElementById('empty-state');
 
+const authStatus = document.getElementById('auth-status');
+const logoutBtn = document.getElementById('logout-btn');
+const loginCard = document.getElementById('login-card');
+const loginForm = document.getElementById('login-form');
+const loginUsername = document.getElementById('login-username');
+const loginPassword = document.getElementById('login-password');
+const loginError = document.getElementById('login-error');
+const linkFormCard = document.getElementById('link-form-card');
+const readonlyHint = document.getElementById('readonly-hint');
+
 let searchTimer = null;
+let currentUser = null;
+let currentLinks = [];
 
 function formatDate(iso) {
   const d = new Date(iso);
@@ -184,12 +235,58 @@ function escapeHtml(str) {
   }[c]));
 }
 
+async function checkAuth() {
+  const res = await fetch('/api/me');
+  currentUser = res.ok ? (await res.json()).username : null;
+  renderAuthUI();
+}
+
+function renderAuthUI() {
+  if (currentUser) {
+    authStatus.textContent = `Signed in as ${currentUser}`;
+    logoutBtn.style.display = 'inline-block';
+    loginCard.style.display = 'none';
+    linkFormCard.style.display = 'block';
+    readonlyHint.style.display = 'none';
+  } else {
+    authStatus.textContent = 'Not signed in';
+    logoutBtn.style.display = 'none';
+    loginCard.style.display = 'block';
+    linkFormCard.style.display = 'none';
+    readonlyHint.style.display = 'block';
+    resetForm();
+  }
+  renderLinks(currentLinks);
+}
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  loginError.textContent = '';
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: loginUsername.value, password: loginPassword.value }),
+  });
+  if (!res.ok) {
+    loginError.textContent = 'Invalid username or password.';
+    return;
+  }
+  loginForm.reset();
+  await checkAuth();
+});
+
+logoutBtn.addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  currentUser = null;
+  renderAuthUI();
+});
+
 async function fetchLinks() {
   const q = searchBox.value.trim();
   const url = q ? `/api/links?q=${encodeURIComponent(q)}` : '/api/links';
   const res = await fetch(url);
-  const links = await res.json();
-  renderLinks(links);
+  currentLinks = await res.json();
+  renderLinks(currentLinks);
 }
 
 function renderLinks(links) {
@@ -197,17 +294,20 @@ function renderLinks(links) {
   emptyState.style.display = links.length === 0 ? 'block' : 'none';
   for (const link of links) {
     const tr = document.createElement('tr');
+    const actions = currentUser
+      ? `<button type="button" class="secondary edit-btn">Edit</button>
+         <button type="button" class="danger delete-btn">Delete</button>`
+      : '';
     tr.innerHTML = `
       <td>${escapeHtml(link.name)}</td>
       <td><a class="link-url" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.url)}</a></td>
       <td>${formatDate(link.date_modified)}</td>
-      <td class="actions">
-        <button type="button" class="secondary edit-btn">Edit</button>
-        <button type="button" class="danger delete-btn">Delete</button>
-      </td>
+      <td class="actions">${actions}</td>
     `;
-    tr.querySelector('.edit-btn').addEventListener('click', () => startEdit(link));
-    tr.querySelector('.delete-btn').addEventListener('click', () => deleteLink(link.id));
+    if (currentUser) {
+      tr.querySelector('.edit-btn').addEventListener('click', () => startEdit(link));
+      tr.querySelector('.delete-btn').addEventListener('click', () => deleteLink(link.id));
+    }
     rowsBody.appendChild(tr);
   }
 }
@@ -239,6 +339,7 @@ form.addEventListener('submit', async (e) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+  if (res.status === 401) return handleSessionExpired();
   if (!res.ok) {
     alert('Failed to save link: ' + (await res.text()));
     return;
@@ -250,6 +351,7 @@ form.addEventListener('submit', async (e) => {
 async function deleteLink(id) {
   if (!confirm('Delete this link?')) return;
   const res = await fetch(`/api/links/${id}`, { method: 'DELETE' });
+  if (res.status === 401) return handleSessionExpired();
   if (!res.ok && res.status !== 204) {
     alert('Failed to delete link: ' + (await res.text()));
     return;
@@ -257,11 +359,18 @@ async function deleteLink(id) {
   fetchLinks();
 }
 
+function handleSessionExpired() {
+  currentUser = null;
+  renderAuthUI();
+  alert('Your session has expired. Please log in again.');
+}
+
 searchBox.addEventListener('input', () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(fetchLinks, 200);
 });
 
+checkAuth();
 fetchLinks();
 </script>
 </body>

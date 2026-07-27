@@ -18,3 +18,14 @@ pub struct LinkInput {
 pub struct SearchQuery {
     pub q: Option<String>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct LoginInput {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CurrentUser {
+    pub username: String,
+}
