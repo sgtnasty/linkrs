@@ -51,7 +51,7 @@ container restarts:
 ```bash
 docker run -d --name linkrs \
   -p 3000:3000 \
-  -v linkrs-data:/app \
+  -v linkrs-data:/data \
   linkrs
 ```
 
@@ -67,7 +67,7 @@ first time, when the container starts with an empty database):
 ```bash
 docker run -d --name linkrs \
   -p 3000:3000 \
-  -v linkrs-data:/app \
+  -v linkrs-data:/data \
   -e LINKRS_ADMIN_USER=myuser \
   -e LINKRS_ADMIN_PASSWORD=my-strong-password \
   linkrs
@@ -77,6 +77,13 @@ The image is a multi-stage build: a `rust:1-slim-bookworm` stage compiles a
 release binary (SQLite is compiled in via `rusqlite`'s `bundled` feature, so
 a C toolchain is needed there but not at runtime), and the final image is
 `debian:bookworm-slim` running the binary as a non-root user.
+
+`/data` is where `linkrs.db` lives — mount a named volume or a host directory
+there. The container's entrypoint starts as root just long enough to `chown`
+`/data` to the app's user before dropping privileges and running linkrs, so
+it works regardless of what UID owns the mounted directory on the host
+(fresh named volumes and host bind mounts are both commonly root-owned, or
+owned by a host user whose UID doesn't match the container's).
 
 ## Authentication
 
@@ -182,12 +189,14 @@ src/
   models.rs    # request/response types
 static/
   index.html   # single-page UI (embedded in the binary at build time)
-Dockerfile     # multi-stage build (rust:1-slim-bookworm -> debian:bookworm-slim)
+Dockerfile           # multi-stage build (rust:1-slim-bookworm -> debian:bookworm-slim)
+docker-entrypoint.sh # fixes /data ownership at container start, then drops to a non-root user
 ```
 
 ## Configuration
 
 - Port: `3000` (fixed)
-- Database file: `linkrs.db` in the working directory the server is started from
+- Database file: `linkrs.db` in the working directory the server is started
+  from (`/data` when run via the Dockerfile)
 - `LINKRS_ADMIN_USER` / `LINKRS_ADMIN_PASSWORD`: set the bootstrap admin
   account's credentials (only read once, when the `users` table is empty)

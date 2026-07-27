@@ -30,14 +30,19 @@ RUN find src -type f -exec touch {} + && cargo build --release
 # ---- Runtime stage ----
 FROM debian:bookworm-slim AS runtime
 
-RUN useradd --system --create-home --home-dir /app --shell /usr/sbin/nologin linkrs
-WORKDIR /app
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin linkrs
 COPY --from=builder /app/target/release/linkrs /usr/local/bin/linkrs
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+    && mkdir -p /data \
+    && chown linkrs:linkrs /data
 
-# linkrs.db is created here on first run; mount a volume at /app to persist
-# it (and the bootstrap admin account) across container restarts.
-RUN chown linkrs:linkrs /app
-USER linkrs
+WORKDIR /data
 
+# Runs as root initially so the entrypoint can chown /data to match
+# whatever gets mounted there (see docker-entrypoint.sh), then drops to the
+# unprivileged linkrs user before ever executing app code. linkrs.db is
+# created in /data on first run; mount a volume there to persist it (and the
+# bootstrap admin account) across container restarts.
 EXPOSE 3000
-ENTRYPOINT ["linkrs"]
+ENTRYPOINT ["docker-entrypoint.sh"]
