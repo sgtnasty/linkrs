@@ -1,7 +1,10 @@
-//! Shared server state: the database handle and the in-memory session store.
+//! Shared server state: the database handle, the in-memory session store,
+//! and the login rate limiter.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::net::IpAddr;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use chrono::{DateTime, Utc};
 use rusqlite::Connection;
@@ -18,9 +21,9 @@ pub struct Session {
 /// Application state shared across all request handlers via axum's
 /// [`axum::extract::State`] extractor.
 ///
-/// Cloning an `AppState` is cheap: both fields are [`Arc`]-wrapped, so a
-/// clone shares the same underlying connection and session map rather than
-/// copying them.
+/// Cloning an `AppState` is cheap: all fields are [`Arc`]-wrapped, so a
+/// clone shares the same underlying connection, session map, and rate
+/// limiter rather than copying them.
 #[derive(Clone)]
 pub struct AppState {
     /// The single shared SQLite connection, guarded by a mutex since
@@ -29,4 +32,7 @@ pub struct AppState {
     /// Active sessions, keyed by the random token stored in the client's
     /// session cookie. Not persisted — restarting the server clears it.
     pub sessions: Arc<Mutex<HashMap<String, Session>>>,
+    /// Recent login attempt timestamps, keyed by client IP, used to rate
+    /// limit `/api/login` in [`crate::auth`].
+    pub login_attempts: Arc<Mutex<HashMap<IpAddr, VecDeque<Instant>>>>,
 }

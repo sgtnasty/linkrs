@@ -11,6 +11,7 @@ mod models;
 mod state;
 
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use axum::{
@@ -51,6 +52,7 @@ async fn main() {
     let state = AppState {
         db: Arc::new(Mutex::new(conn)),
         sessions: Arc::new(Mutex::new(HashMap::new())),
+        login_attempts: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let protected = Router::new()
@@ -80,5 +82,10 @@ async fn main() {
         .await
         .expect("failed to bind to port 3000");
     tracing::info!("linkrs listening on http://0.0.0.0:3000");
-    axum::serve(listener, app).await.expect("server error");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .expect("server error");
 }

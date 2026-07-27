@@ -7,9 +7,13 @@
 //! "Authentication" section of the README for the threat model this is
 //! designed for (trusted/local use).
 
+use std::collections::VecDeque;
+use std::net::{IpAddr, SocketAddr};
+use std::time::{Duration as StdDuration, Instant};
+
 use axum::{
-    extract::{Request, State},
-    http::StatusCode,
+    extract::{ConnectInfo, Request, State},
+    http::{header, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
@@ -31,6 +35,11 @@ use crate::state::{AppState, Session};
 pub const SESSION_COOKIE: &str = "linkrs_session";
 /// How long a session remains valid after login.
 const SESSION_TTL_DAYS: i64 = 7;
+/// How many `/api/login` attempts a single IP may make within
+/// [`LOGIN_RATE_WINDOW`] before being rate limited.
+const MAX_LOGIN_ATTEMPTS: usize = 5;
+/// The sliding window over which [`MAX_LOGIN_ATTEMPTS`] is enforced.
+const LOGIN_RATE_WINDOW: StdDuration = StdDuration::from_secs(60);
 
 /// Hashes a plaintext password into a PHC-formatted Argon2 string, suitable
 /// for storing in the `users.password_hash` column.
@@ -116,17 +125,60 @@ pub fn ensure_admin_user(
     }
 }
 
+/// Records a login attempt from `ip` and checks it against the sliding-window
+/// rate limit, evicting timestamps older than [`LOGIN_RATE_WINDOW`] first.
+///
+/// Returns `Ok(())` if the attempt is allowed (and records it), or
+/// `Err(retry_after)` — the number of whole seconds the caller should wait —
+/// if `ip` has already made [`MAX_LOGIN_ATTEMPTS`] attempts within the
+/// window. Counts every attempt regardless of whether the credentials turn
+/// out to be valid, since the goal is bounding guesses, not just failures.
+fn check_login_rate_limit(state: &AppState, ip: IpAddr) -> Result<(), u64> {
+    let mut attempts = state.login_attempts.lock().unwrap();
+    let now = Instant::now();
+    let history = attempts.entry(ip).or_insert_with(VecDeque::new);
+
+    while let Some(&oldest) = history.front() {
+        if now.duration_since(oldest) > LOGIN_RATE_WINDOW {
+            history.pop_front();
+        } else {
+            break;
+        }
+    }
+
+    if history.len() >= MAX_LOGIN_ATTEMPTS {
+        let oldest = *history.front().expect("history is non-empty here");
+        let retry_after = LOGIN_RATE_WINDOW.saturating_sub(now.duration_since(oldest));
+        return Err(retry_after.as_secs() + 1);
+    }
+
+    history.push_back(now);
+    Ok(())
+}
+
 /// `POST /api/login` — verifies credentials and, on success, starts a new
 /// session and sets the session cookie.
 ///
 /// Returns `401 Unauthorized` for an unknown username or wrong password
 /// (the two cases are indistinguishable in the response, to avoid leaking
-/// which usernames exist).
+/// which usernames exist), or `429 Too Many Requests` with a `Retry-After`
+/// header if the client's IP has made too many attempts recently (see
+/// [`check_login_rate_limit`]).
 pub async fn login(
     State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     jar: CookieJar,
     Json(input): Json<LoginInput>,
 ) -> impl IntoResponse {
+    if let Err(retry_after) = check_login_rate_limit(&state, addr.ip()) {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(header::RETRY_AFTER, retry_after.to_string())],
+            "too many login attempts, try again later",
+        )
+            .into_response();
+    }
+
     let password_hash = {
         let conn = state.db.lock().unwrap();
         match db::get_user_password_hash(&conn, &input.username) {

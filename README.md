@@ -77,10 +77,17 @@ stored server-side in memory and referenced by an `HttpOnly` cookie, valid for
 
 Passwords are hashed with Argon2 before being stored — never in plaintext.
 
-**Note:** this is intended for trusted/local use. There's no CSRF token, rate
-limiting, or account management (registration, password reset) beyond the
-single bootstrap admin. If exposing linkrs beyond localhost, put it behind
-HTTPS (e.g. a reverse proxy) since the session cookie is sent over plain HTTP
+`/api/login` is rate limited per client IP: at most 5 attempts per 60-second
+sliding window (successful or not). Once tripped, further attempts get
+`429 Too Many Requests` with a `Retry-After` header until the window clears.
+
+**Note:** this is intended for trusted/local use. There's no CSRF token or
+account management (registration, password reset) beyond the single
+bootstrap admin, and the login rate limiter tracks state in memory per
+process (so it resets on restart and isn't shared across multiple server
+instances behind a load balancer). If exposing linkrs beyond localhost, put
+it behind HTTPS (e.g. a reverse proxy) since the session cookie is sent over
+plain HTTP
 otherwise.
 
 ## Usage
