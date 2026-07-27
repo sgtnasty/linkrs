@@ -51,15 +51,25 @@ WARN linkrs: Generated admin credentials — username: admin  password: <random>
 
 Copy that password down — it's only shown once (though the account remains
 usable and its password can be reset by deleting `linkrs.db` and restarting).
-To pin known credentials instead of a random password, set env vars before
-the first run:
+To pin known credentials instead of a random password, either export env vars
+before the first run:
 
 ```bash
 LINKRS_ADMIN_USER=myuser LINKRS_ADMIN_PASSWORD=my-strong-password cargo run
 ```
 
-These are only read when the `users` table is empty (i.e. once, at bootstrap)
-— changing them later has no effect on an existing account.
+or copy `.env.example` to `.env` and fill it in — linkrs loads `.env`
+automatically at startup:
+
+```bash
+cp .env.example .env
+# edit .env, then:
+cargo run
+```
+
+`.env` is gitignored, so real credentials never get committed. These vars are
+only read when the `users` table is empty (i.e. once, at bootstrap) —
+changing them later has no effect on an existing account.
 
 Log in from the web UI's login form, or via the API (see below). Sessions are
 stored server-side in memory and referenced by an `HttpOnly` cookie, valid for

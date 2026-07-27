@@ -34,6 +34,7 @@ use state::AppState;
 /// can't reach its own database or bind its port.
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
     tracing_subscriber::fmt::init();
 
     let conn = Connection::open("linkrs.db").expect("failed to open sqlite database");
