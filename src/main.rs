@@ -86,6 +86,38 @@ async fn main() {
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal())
     .await
     .expect("server error");
+}
+
+/// Resolves once a `Ctrl+C` (`SIGINT`) or `SIGTERM` is received, letting
+/// [`main`] pass it to [`axum::serve::Serve::with_graceful_shutdown`] so
+/// in-flight requests finish instead of being cut off — and so `podman
+/// stop`/`docker stop` and `systemctl stop` return promptly instead of
+/// waiting out the SIGKILL grace period.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::info!("shutdown signal received, shutting down gracefully");
 }
