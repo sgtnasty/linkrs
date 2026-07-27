@@ -23,6 +23,10 @@ cd linkrs
 cargo build
 ```
 
+Alternatively, download a prebuilt Linux (x86_64) binary from the
+[releases page](https://github.com/sgtnasty/linkrs/releases) — each GitHub
+release has one attached, built by `.github/workflows/release.yml`.
+
 ## Running
 
 ```bash
@@ -191,6 +195,9 @@ static/
   index.html   # single-page UI (embedded in the binary at build time)
 Dockerfile           # multi-stage build (rust:1-slim-bookworm -> debian:bookworm-slim)
 docker-entrypoint.sh # fixes /data ownership at container start, then drops to a non-root user
+.github/workflows/
+  rust.yml           # cargo build + cargo test on push/PR
+  release.yml        # builds a release binary and attaches it when a GitHub release is published
 ```
 
 ## Configuration
