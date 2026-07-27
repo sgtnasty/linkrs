@@ -1,5 +1,8 @@
 # linkrs
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/sgtnasty/linkrs)](https://hub.docker.com/r/sgtnasty/linkrs)
+[![Docker Image Version](https://img.shields.io/docker/v/sgtnasty/linkrs?sort=semver)](https://hub.docker.com/r/sgtnasty/linkrs)
+
 A small self-hosted link manager. Single-page web UI for creating, searching,
 editing, and deleting bookmarks, backed by a local SQLite database.
 
