@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-27
+
 ### Added
 
 - HTTPS: linkrs now serves over TLS only (same port, 3000), using a
@@ -17,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Session cookies are now marked `Secure`. There is no HTTP fallback or
   redirect — `http://localhost:3000` fails to connect rather than
   redirecting.
+- GitHub Actions workflow that builds a release binary and attaches it to a
+  GitHub release when one is published.
 
 ## [0.1.0] - 2026-07-27
 
