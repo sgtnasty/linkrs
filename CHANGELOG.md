@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- HTTPS: linkrs now serves over TLS only (same port, 3000), using a
+  self-signed certificate (`cert.pem`/`key.pem`) auto-generated on first run
+  via `rcgen` and persisted alongside `linkrs.db`. Covers `localhost` and
+  `127.0.0.1` by default; extra hostnames/IPs can be added via the new
+  `LINKRS_TLS_SAN` env var before the certificate is first generated.
+  Session cookies are now marked `Secure`. There is no HTTP fallback or
+  redirect — `http://localhost:3000` fails to connect rather than
+  redirecting.
+
 ## [0.1.0] - 2026-07-27
 
 ### Added

@@ -41,8 +41,9 @@ WORKDIR /data
 
 # Runs as root initially so the entrypoint can chown /data to match
 # whatever gets mounted there (see docker-entrypoint.sh), then drops to the
-# unprivileged linkrs user before ever executing app code. linkrs.db is
-# created in /data on first run; mount a volume there to persist it (and the
-# bootstrap admin account) across container restarts.
+# unprivileged linkrs user before ever executing app code. linkrs.db,
+# cert.pem, and key.pem are created in /data on first run; mount a volume
+# there to persist them (the bootstrap admin account and the self-signed TLS
+# certificate) across container restarts.
 EXPOSE 3000
 ENTRYPOINT ["docker-entrypoint.sh"]

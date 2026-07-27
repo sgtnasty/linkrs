@@ -1,6 +1,6 @@
 [package]
 name = "linkrs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 
@@ -19,3 +19,6 @@ argon2 = "0.5"
 rand = "0.8"
 time = "0.3"
 dotenvy = "0.15"
+axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+rcgen = "0.14"

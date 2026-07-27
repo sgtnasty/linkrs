@@ -211,6 +211,7 @@ pub async fn login(
     let cookie = Cookie::build((SESSION_COOKIE, token))
         .path("/")
         .http_only(true)
+        .secure(true)
         .same_site(axum_extra::extract::cookie::SameSite::Lax)
         .max_age(time::Duration::days(SESSION_TTL_DAYS))
         .build();
@@ -235,6 +236,7 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoR
     }
     let removal = Cookie::build((SESSION_COOKIE, ""))
         .path("/")
+        .secure(true)
         .max_age(time::Duration::seconds(0))
         .build();
     (jar.add(removal), StatusCode::NO_CONTENT)
