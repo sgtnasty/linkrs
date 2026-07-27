@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>linkrs</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #1a1d23;
+    --muted: #666d78;
+    --border: #dfe2e6;
+    --accent: #3b6ef6;
+    --accent-hover: #2f56c4;
+    --danger: #d1453d;
+    --danger-hover: #ab372f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --card: #1d2026;
+      --text: #ecedef;
+      --muted: #9aa1ac;
+      --border: #2b2f37;
+      --accent: #6690ff;
+      --accent-hover: #86a7ff;
+      --danger: #e5665f;
+      --danger-hover: #f08983;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  h1 {
+    font-size: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .row {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .row > * { flex: 1 1 200px; }
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+  input[type=text], input[type=url] {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 0.6rem 1.1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+  }
+  button:hover { background: var(--accent-hover); }
+  button.danger { background: var(--danger); }
+  button.danger:hover { background: var(--danger-hover); }
+  button.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .search {
+    margin-bottom: 1rem;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.65rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+  th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+  td.actions { white-space: nowrap; text-align: right; }
+  td.actions button { margin-left: 0.4rem; padding: 0.35rem 0.7rem; font-size: 0.8rem; }
+  a.link-url { color: var(--accent); text-decoration: none; word-break: break-all; }
+  a.link-url:hover { text-decoration: underline; }
+  .empty { color: var(--muted); text-align: center; padding: 2rem 0; }
+  .form-actions { margin-top: 1rem; display: flex; gap: 0.6rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>linkrs</h1>
+
+  <div class="card">
+    <form id="link-form">
+      <input type="hidden" id="link-id">
+      <div class="row">
+        <div>
+          <label for="link-name">Name</label>
+          <input type="text" id="link-name" required maxlength="200">
+        </div>
+        <div>
+          <label for="link-url">URL</label>
+          <input type="url" id="link-url" required maxlength="2000" placeholder="https://example.com">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" id="submit-btn">Add link</button>
+        <button type="button" class="secondary" id="cancel-btn" style="display:none">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="search">
+    <input type="text" id="search-box" placeholder="Search by name or URL...">
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>URL</th>
+          <th>Modified</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="link-rows"></tbody>
+    </table>
+    <div class="empty" id="empty-state" style="display:none">No links yet.</div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('link-form');
+const idField = document.getElementById('link-id');
+const nameField = document.getElementById('link-name');
+const urlField = document.getElementById('link-url');
+const submitBtn = document.getElementById('submit-btn');
+const cancelBtn = document.getElementById('cancel-btn');
+const searchBox = document.getElementById('search-box');
+const rowsBody = document.getElementById('link-rows');
+const emptyState = document.getElementById('empty-state');
+
+let searchTimer = null;
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+async function fetchLinks() {
+  const q = searchBox.value.trim();
+  const url = q ? `/api/links?q=${encodeURIComponent(q)}` : '/api/links';
+  const res = await fetch(url);
+  const links = await res.json();
+  renderLinks(links);
+}
+
+function renderLinks(links) {
+  rowsBody.innerHTML = '';
+  emptyState.style.display = links.length === 0 ? 'block' : 'none';
+  for (const link of links) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(link.name)}</td>
+      <td><a class="link-url" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.url)}</a></td>
+      <td>${formatDate(link.date_modified)}</td>
+      <td class="actions">
+        <button type="button" class="secondary edit-btn">Edit</button>
+        <button type="button" class="danger delete-btn">Delete</button>
+      </td>
+    `;
+    tr.querySelector('.edit-btn').addEventListener('click', () => startEdit(link));
+    tr.querySelector('.delete-btn').addEventListener('click', () => deleteLink(link.id));
+    rowsBody.appendChild(tr);
+  }
+}
+
+function startEdit(link) {
+  idField.value = link.id;
+  nameField.value = link.name;
+  urlField.value = link.url;
+  submitBtn.textContent = 'Save changes';
+  cancelBtn.style.display = 'inline-block';
+  nameField.focus();
+}
+
+function resetForm() {
+  idField.value = '';
+  form.reset();
+  submitBtn.textContent = 'Add link';
+  cancelBtn.style.display = 'none';
+}
+
+cancelBtn.addEventListener('click', resetForm);
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const payload = { name: nameField.value.trim(), url: urlField.value.trim() };
+  const id = idField.value;
+  const res = await fetch(id ? `/api/links/${id}` : '/api/links', {
+    method: id ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    alert('Failed to save link: ' + (await res.text()));
+    return;
+  }
+  resetForm();
+  fetchLinks();
+});
+
+async function deleteLink(id) {
+  if (!confirm('Delete this link?')) return;
+  const res = await fetch(`/api/links/${id}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 204) {
+    alert('Failed to delete link: ' + (await res.text()));
+    return;
+  }
+  fetchLinks();
+}
+
+searchBox.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(fetchLinks, 200);
+});
+
+fetchLinks();
+</script>
+</body>
+</html>
