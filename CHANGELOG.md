@@ -26,9 +26,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.env.example` documenting the admin credential variables.
 - MIT license.
 - Rustdoc documentation across all modules.
+- `Dockerfile` and `docker-entrypoint.sh` for containerized deployment: a
+  multi-stage build (`rust:1-slim-bookworm` compiles a release binary,
+  `debian:bookworm-slim` runs it), with the entrypoint fixing up the mounted
+  data directory's ownership before dropping to a non-root user, regardless
+  of which UID owns the mounted volume or bind mount on the host.
+- Graceful shutdown on `SIGTERM`/`Ctrl+C`, so in-flight requests finish and
+  the process exits promptly (including under `docker stop`/`podman stop`)
+  instead of waiting out the container runtime's kill timeout.
+- GitHub Actions workflow running `cargo build` and `cargo test` on push and
+  pull request.
 
 ### Fixed
 
 - Login password input styling to match the other form fields (it was
   missing from the styled input selector and fell back to the browser
   default look).
+- Container startup failure ("unable to open database file") when the data
+  directory was mounted from a bind mount or volume not owned by the
+  container's non-root user.
