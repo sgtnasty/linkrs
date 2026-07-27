@@ -1,3 +1,9 @@
+//! linkrs: a small self-hosted link manager.
+//!
+//! Wires together the SQLite-backed [`db`] layer, the [`auth`] session
+//! system, and the [`handlers`] that serve the single-page UI and its JSON
+//! API, then starts an axum server on port 3000.
+
 mod auth;
 mod db;
 mod handlers;
@@ -17,6 +23,15 @@ use tower_http::trace::TraceLayer;
 
 use state::AppState;
 
+/// Opens the SQLite database, bootstraps the admin account if needed, and
+/// starts the HTTP server.
+///
+/// # Panics
+///
+/// Panics on startup failure (opening the database, initializing its
+/// schema, creating the admin user, binding the listener, or the server
+/// itself erroring out) — there's no graceful degradation for a server that
+/// can't reach its own database or bind its port.
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();

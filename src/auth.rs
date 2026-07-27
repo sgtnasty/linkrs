@@ -1,3 +1,12 @@
+//! Authentication: password hashing, session management, and the
+//! login/logout/me/require-auth HTTP handlers.
+//!
+//! Sessions are opaque random tokens held in [`crate::state::AppState`]'s
+//! in-memory map, referenced by an `HttpOnly` cookie on the client. There is
+//! no persistence across restarts and no CSRF protection — see the
+//! "Authentication" section of the README for the threat model this is
+//! designed for (trusted/local use).
+
 use axum::{
     extract::{Request, State},
     http::StatusCode,
@@ -18,9 +27,21 @@ use crate::db;
 use crate::models::{CurrentUser, LoginInput};
 use crate::state::{AppState, Session};
 
+/// Name of the cookie that carries the session token.
 pub const SESSION_COOKIE: &str = "linkrs_session";
+/// How long a session remains valid after login.
 const SESSION_TTL_DAYS: i64 = 7;
 
+/// Hashes a plaintext password into a PHC-formatted Argon2 string, suitable
+/// for storing in the `users.password_hash` column.
+///
+/// Generates a fresh random salt each call, so hashing the same password
+/// twice produces different output.
+///
+/// # Panics
+///
+/// Panics if Argon2 hashing fails, which in practice only happens for
+/// pathological inputs (e.g. an empty output buffer) that can't occur here.
 pub fn hash_password(password: &str) -> String {
     let salt = SaltString::generate(&mut rand::rngs::OsRng);
     Argon2::default()
@@ -29,6 +50,10 @@ pub fn hash_password(password: &str) -> String {
         .to_string()
 }
 
+/// Checks a plaintext password against a stored PHC-formatted hash.
+///
+/// Returns `false` (rather than erroring) if `hash` isn't a validly-formatted
+/// PHC string, treating a corrupt/foreign hash the same as a mismatch.
 fn verify_password(password: &str, hash: &str) -> bool {
     match PasswordHash::new(hash) {
         Ok(parsed) => Argon2::default()
@@ -38,6 +63,8 @@ fn verify_password(password: &str, hash: &str) -> bool {
     }
 }
 
+/// Generates a random alphanumeric session token (48 characters, ~285 bits
+/// of entropy) to store as the value of the session cookie.
 fn random_token() -> String {
     rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -46,6 +73,8 @@ fn random_token() -> String {
         .collect()
 }
 
+/// Generates a random alphanumeric password (16 characters) for bootstrapping
+/// the admin account when `LINKRS_ADMIN_PASSWORD` isn't set.
 pub fn random_password() -> String {
     rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -56,7 +85,16 @@ pub fn random_password() -> String {
 
 /// Creates a default admin user if the users table is empty. Returns the
 /// generated password when one had to be generated (i.e. it wasn't supplied
-/// via LINKRS_ADMIN_PASSWORD), so the caller can print it once at startup.
+/// via `LINKRS_ADMIN_PASSWORD`), so the caller can print it once at startup.
+///
+/// Reads `LINKRS_ADMIN_USER` (default `"admin"`) and `LINKRS_ADMIN_PASSWORD`
+/// from the environment; these are only consulted the first time (i.e. when
+/// no users exist yet).
+///
+/// # Errors
+///
+/// Returns an error if checking the user count or inserting the new user
+/// fails.
 pub fn ensure_admin_user(
     conn: &rusqlite::Connection,
 ) -> rusqlite::Result<Option<(String, String)>> {
@@ -78,6 +116,12 @@ pub fn ensure_admin_user(
     }
 }
 
+/// `POST /api/login` — verifies credentials and, on success, starts a new
+/// session and sets the session cookie.
+///
+/// Returns `401 Unauthorized` for an unknown username or wrong password
+/// (the two cases are indistinguishable in the response, to avoid leaking
+/// which usernames exist).
 pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -128,6 +172,11 @@ pub async fn login(
         .into_response()
 }
 
+/// `POST /api/logout` — invalidates the current session (if any) and clears
+/// the session cookie.
+///
+/// Always returns `204 No Content`, whether or not a session was actually
+/// active — logging out an already-logged-out client isn't an error.
 pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if let Some(cookie) = jar.get(SESSION_COOKIE) {
         state.sessions.lock().unwrap().remove(cookie.value());
@@ -139,6 +188,11 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoR
     (jar.add(removal), StatusCode::NO_CONTENT)
 }
 
+/// `GET /api/me` — returns the current session's username, or
+/// `401 Unauthorized` if there is no valid session.
+///
+/// Used by the frontend on load to decide whether to show the login form or
+/// the add/edit/delete controls.
 pub async fn me(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     let username = jar
         .get(SESSION_COOKIE)
@@ -149,6 +203,13 @@ pub async fn me(State(state): State<AppState>, jar: CookieJar) -> impl IntoRespo
     }
 }
 
+/// Resolves a session token to its username, if the token exists and hasn't
+/// expired.
+///
+/// A found-but-expired session is treated the same as an unknown one; it is
+/// not proactively evicted from the map here (sessions are only ever removed
+/// on logout), so expired entries just accumulate until the process
+/// restarts. Acceptable for this app's scale and threat model.
 fn current_username(state: &AppState, token: &str) -> Option<String> {
     let sessions = state.sessions.lock().unwrap();
     sessions.get(token).and_then(|session| {
@@ -160,6 +221,11 @@ fn current_username(state: &AppState, token: &str) -> Option<String> {
     })
 }
 
+/// Axum middleware that rejects the request with `401 Unauthorized` unless
+/// the session cookie names a valid, unexpired session.
+///
+/// Mounted in `main.rs` only on the mutating link routes (`POST`, `PUT`,
+/// `DELETE`); reading and searching links stays open to anyone.
 pub async fn require_auth(
     State(state): State<AppState>,
     request: Request,

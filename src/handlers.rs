@@ -1,3 +1,9 @@
+//! HTTP handlers for serving the single-page UI and the link CRUD API.
+//!
+//! `create_link`, `update_link`, and `delete_link` are mounted behind the
+//! [`crate::auth::require_auth`] middleware in `main.rs`; `index` and
+//! `list_links` are public.
+
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -9,10 +15,18 @@ use crate::db;
 use crate::models::{LinkInput, SearchQuery};
 use crate::state::AppState;
 
+/// Serves the single-page app shell.
+///
+/// The HTML is embedded into the binary at compile time via
+/// [`include_str!`], so there's no filesystem lookup (or missing-file
+/// failure mode) at runtime.
 pub async fn index() -> Html<&'static str> {
     Html(include_str!("../static/index.html"))
 }
 
+/// `GET /api/links` — lists all links, or those matching `?q=` if present.
+///
+/// Public: does not require authentication.
 pub async fn list_links(
     State(state): State<AppState>,
     Query(params): Query<SearchQuery>,
@@ -24,6 +38,9 @@ pub async fn list_links(
     }
 }
 
+/// `POST /api/links` — creates a link. Requires authentication.
+///
+/// Returns `400 Bad Request` if `name` or `url` is empty after trimming.
 pub async fn create_link(
     State(state): State<AppState>,
     Json(input): Json<LinkInput>,
@@ -38,6 +55,11 @@ pub async fn create_link(
     }
 }
 
+/// `PUT /api/links/:id` — updates a link's name and URL. Requires
+/// authentication.
+///
+/// Returns `400 Bad Request` if `name` or `url` is empty after trimming, or
+/// `404 Not Found` if no link with `id` exists.
 pub async fn update_link(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -54,6 +76,10 @@ pub async fn update_link(
     }
 }
 
+/// `DELETE /api/links/:id` — deletes a link. Requires authentication.
+///
+/// Returns `204 No Content` on success, or `404 Not Found` if no link with
+/// `id` exists.
 pub async fn delete_link(State(state): State<AppState>, Path(id): Path<i64>) -> impl IntoResponse {
     let conn = state.db.lock().unwrap();
     match db::delete_link(&conn, id) {

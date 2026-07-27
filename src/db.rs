@@ -1,7 +1,21 @@
+//! SQLite persistence for links and users.
+//!
+//! All functions here take a borrowed [`Connection`] rather than owning one,
+//! since the connection is shared across requests behind a mutex in
+//! [`crate::state::AppState`].
+
 use crate::models::Link;
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
 
+/// Creates the `links` and `users` tables if they don't already exist.
+///
+/// Safe to call on every startup: `CREATE TABLE IF NOT EXISTS` makes this
+/// idempotent, so existing data is left untouched.
+///
+/// # Errors
+///
+/// Returns an error if the underlying SQLite statements fail to execute.
 pub fn init_db(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS links (
@@ -23,10 +37,27 @@ pub fn init_db(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Returns the total number of registered users.
+///
+/// Used at startup to decide whether a bootstrap admin account needs to be
+/// created (see [`crate::auth::ensure_admin_user`]).
+///
+/// # Errors
+///
+/// Returns an error if the query fails.
 pub fn count_users(conn: &Connection) -> Result<i64> {
     conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))
 }
 
+/// Inserts a new user with an already-hashed password.
+///
+/// `password_hash` must be a PHC-formatted Argon2 hash (see
+/// [`crate::auth::hash_password`]) — this function does not hash it itself.
+///
+/// # Errors
+///
+/// Returns an error if `username` is already taken (violates the `UNIQUE`
+/// constraint) or the insert otherwise fails.
 pub fn create_user(conn: &Connection, username: &str, password_hash: &str) -> Result<()> {
     conn.execute(
         "INSERT INTO users (username, password_hash) VALUES (?1, ?2)",
@@ -35,6 +66,15 @@ pub fn create_user(conn: &Connection, username: &str, password_hash: &str) -> Re
     Ok(())
 }
 
+/// Looks up a user's stored password hash by username.
+///
+/// Returns `Ok(None)` if no user with that username exists, rather than an
+/// error, so callers can treat "unknown user" and "wrong password" the same
+/// way without matching on error variants.
+///
+/// # Errors
+///
+/// Returns an error for any SQLite failure other than "no rows returned".
 pub fn get_user_password_hash(conn: &Connection, username: &str) -> Result<Option<String>> {
     conn.query_row(
         "SELECT password_hash FROM users WHERE username = ?1",
@@ -48,6 +88,14 @@ pub fn get_user_password_hash(conn: &Connection, username: &str) -> Result<Optio
     })
 }
 
+/// Lists links, optionally filtered by a case-insensitive substring match on
+/// name or URL, ordered by most recently modified first.
+///
+/// Passing `None` (or an all-whitespace string) returns every link.
+///
+/// # Errors
+///
+/// Returns an error if the query fails to prepare or execute.
 pub fn list_links(conn: &Connection, search: Option<&str>) -> Result<Vec<Link>> {
     let mut stmt;
     let rows_iter = match search {
@@ -71,6 +119,12 @@ pub fn list_links(conn: &Connection, search: Option<&str>) -> Result<Vec<Link>> 
     Ok(rows_iter)
 }
 
+/// Inserts a new link, stamping it with the current UTC time as
+/// `date_modified`, and returns the row as stored.
+///
+/// # Errors
+///
+/// Returns an error if the insert fails.
 pub fn create_link(conn: &Connection, name: &str, url: &str) -> Result<Link> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
@@ -86,6 +140,14 @@ pub fn create_link(conn: &Connection, name: &str, url: &str) -> Result<Link> {
     })
 }
 
+/// Updates an existing link's name and URL, refreshing `date_modified` to
+/// the current UTC time.
+///
+/// Returns `Ok(None)` if no link with `id` exists, rather than an error.
+///
+/// # Errors
+///
+/// Returns an error if the update statement fails to execute.
 pub fn update_link(conn: &Connection, id: i64, name: &str, url: &str) -> Result<Option<Link>> {
     let now = Utc::now().to_rfc3339();
     let updated = conn.execute(
@@ -103,11 +165,21 @@ pub fn update_link(conn: &Connection, id: i64, name: &str, url: &str) -> Result<
     }))
 }
 
+/// Deletes the link with the given `id`.
+///
+/// Returns `true` if a row was deleted, `false` if no link with that `id`
+/// existed.
+///
+/// # Errors
+///
+/// Returns an error if the delete statement fails to execute.
 pub fn delete_link(conn: &Connection, id: i64) -> Result<bool> {
     let deleted = conn.execute("DELETE FROM links WHERE id = ?1", params![id])?;
     Ok(deleted > 0)
 }
 
+/// Maps a `links` table row (in `id, name, url, date_modified` column order)
+/// into a [`Link`].
 fn row_to_link(row: &rusqlite::Row) -> Result<Link> {
     Ok(Link {
         id: row.get(0)?,
