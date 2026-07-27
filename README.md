@@ -37,6 +37,47 @@ the `links` and `users` tables automatically. The database file persists
 between runs — delete it if you want to start fresh (this also resets the
 admin account).
 
+## Running with Docker
+
+Build the image:
+
+```bash
+docker build -t linkrs .
+```
+
+Run it, mounting a volume so `linkrs.db` (and the admin account) survive
+container restarts:
+
+```bash
+docker run -d --name linkrs \
+  -p 3000:3000 \
+  -v linkrs-data:/app \
+  linkrs
+```
+
+Open `http://localhost:3000`, then check the generated admin credentials:
+
+```bash
+docker logs linkrs
+```
+
+To pin the admin credentials instead, pass them as env vars (only used the
+first time, when the container starts with an empty database):
+
+```bash
+docker run -d --name linkrs \
+  -p 3000:3000 \
+  -v linkrs-data:/app \
+  -e LINKRS_ADMIN_USER=myuser \
+  -e LINKRS_ADMIN_PASSWORD=my-strong-password \
+  linkrs
+```
+
+The image is a multi-stage build: a `rust:1-slim-bookworm` stage compiles a
+release binary (SQLite is compiled in via `rusqlite`'s `bundled` feature, so
+a C toolchain is needed there but not at runtime), and the final image is
+`debian:bookworm-slim` running the binary as a non-root user.
+
 ## Authentication
 
 Viewing and searching links is public. **Adding, editing, and deleting links
@@ -141,6 +182,7 @@ src/
   models.rs    # request/response types
 static/
   index.html   # single-page UI (embedded in the binary at build time)
+Dockerfile     # multi-stage build (rust:1-slim-bookworm -> debian:bookworm-slim)
 ```
 
 ## Configuration
