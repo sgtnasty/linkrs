@@ -7,6 +7,12 @@
 A small self-hosted link manager. Single-page web UI for creating, searching,
 editing, and deleting bookmarks, backed by a local SQLite database.
 
+> **Work in progress.** linkrs is still under active development. The
+> database schema may change between releases in ways that aren't
+> backward-compatible, which can result in loss of existing data
+> (`linkrs.db`) on upgrade. Back up `linkrs.db` before updating, and expect
+> breaking changes until a 1.0 release.
+
 Each link has:
 - **Name**
 - **URL**
