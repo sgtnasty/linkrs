@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-29
+
+### Added
+
+- Tags: links can now have zero or more tags, trimmed/lowercased/deduped on
+  save. Tags render as clickable pill badges under each link's name;
+  clicking one filters the list via a new `?tag=` query param on
+  `GET /api/links` (combinable with `?q=` — a link must match both). The
+  add/edit form gained a comma-separated Tags field.
+- `CLAUDE.md` documenting the project's architecture for Claude Code.
+
+### Changed
+
+- The delete confirmation dialog now names the link being deleted, to make
+  accidental clicks easier to catch.
+
 ## [0.2.0] - 2026-07-27
 
 ### Added
