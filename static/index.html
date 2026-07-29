@@ -112,6 +112,26 @@
   a.link-url { color: var(--accent); text-decoration: none; word-break: break-all; }
   a.link-url:hover { text-decoration: underline; }
   .empty { color: var(--muted); text-align: center; padding: 2rem 0; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
+  .tag-badge {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 0.15rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .tag-badge:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tag-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .tag-filter-bar button { padding: 0.25rem 0.65rem; font-size: 0.75rem; }
   .form-actions { margin-top: 1rem; display: flex; gap: 0.6rem; }
   .auth-bar {
     display: flex;
@@ -167,6 +187,12 @@
           <input type="url" id="link-url" required maxlength="2000" placeholder="https://example.com">
         </div>
       </div>
+      <div class="row">
+        <div>
+          <label for="link-tags">Tags</label>
+          <input type="text" id="link-tags" maxlength="500" placeholder="comma-separated, e.g. rust, self-hosted (stored lowercase)">
+        </div>
+      </div>
       <div class="form-actions">
         <button type="submit" id="submit-btn">Add link</button>
         <button type="button" class="secondary" id="cancel-btn" style="display:none">Cancel</button>
@@ -180,6 +206,10 @@
 
   <div class="search">
     <input type="text" id="search-box" placeholder="Search by name or URL...">
+    <div class="tag-filter-bar" id="tag-filter-bar" style="display:none">
+      Filtering by tag: <strong id="tag-filter-label"></strong>
+      <button type="button" class="secondary" id="clear-tag-filter">Clear</button>
+    </div>
   </div>
 
   <div class="card">
@@ -203,11 +233,15 @@ const form = document.getElementById('link-form');
 const idField = document.getElementById('link-id');
 const nameField = document.getElementById('link-name');
 const urlField = document.getElementById('link-url');
+const tagsField = document.getElementById('link-tags');
 const submitBtn = document.getElementById('submit-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const searchBox = document.getElementById('search-box');
 const rowsBody = document.getElementById('link-rows');
 const emptyState = document.getElementById('empty-state');
+const tagFilterBar = document.getElementById('tag-filter-bar');
+const tagFilterLabel = document.getElementById('tag-filter-label');
+const clearTagFilterBtn = document.getElementById('clear-tag-filter');
 
 const authStatus = document.getElementById('auth-status');
 const logoutBtn = document.getElementById('logout-btn');
@@ -222,6 +256,7 @@ const readonlyHint = document.getElementById('readonly-hint');
 let searchTimer = null;
 let currentUser = null;
 let currentLinks = [];
+let activeTag = null;
 
 function formatDate(iso) {
   const d = new Date(iso);
@@ -283,10 +318,21 @@ logoutBtn.addEventListener('click', async () => {
 
 async function fetchLinks() {
   const q = searchBox.value.trim();
-  const url = q ? `/api/links?q=${encodeURIComponent(q)}` : '/api/links';
-  const res = await fetch(url);
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (activeTag) params.set('tag', activeTag);
+  const qs = params.toString();
+  const res = await fetch(qs ? `/api/links?${qs}` : '/api/links');
   currentLinks = await res.json();
   renderLinks(currentLinks);
+}
+
+function renderTags(tags) {
+  if (!tags || tags.length === 0) return '';
+  const badges = tags.map((t) =>
+    `<button type="button" class="tag-badge" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</button>`
+  ).join('');
+  return `<div class="tag-list">${badges}</div>`;
 }
 
 function renderLinks(links) {
@@ -299,23 +345,40 @@ function renderLinks(links) {
          <button type="button" class="danger delete-btn">Delete</button>`
       : '';
     tr.innerHTML = `
-      <td>${escapeHtml(link.name)}</td>
+      <td>${escapeHtml(link.name)}${renderTags(link.tags)}</td>
       <td><a class="link-url" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.url)}</a></td>
       <td>${formatDate(link.date_modified)}</td>
       <td class="actions">${actions}</td>
     `;
     if (currentUser) {
       tr.querySelector('.edit-btn').addEventListener('click', () => startEdit(link));
-      tr.querySelector('.delete-btn').addEventListener('click', () => deleteLink(link.id));
+      tr.querySelector('.delete-btn').addEventListener('click', () => deleteLink(link));
     }
+    tr.querySelectorAll('.tag-badge').forEach((badge) => {
+      badge.addEventListener('click', () => setTagFilter(badge.dataset.tag));
+    });
     rowsBody.appendChild(tr);
   }
 }
+
+function setTagFilter(tag) {
+  activeTag = tag;
+  tagFilterLabel.textContent = tag;
+  tagFilterBar.style.display = 'flex';
+  fetchLinks();
+}
+
+clearTagFilterBtn.addEventListener('click', () => {
+  activeTag = null;
+  tagFilterBar.style.display = 'none';
+  fetchLinks();
+});
 
 function startEdit(link) {
   idField.value = link.id;
   nameField.value = link.name;
   urlField.value = link.url;
+  tagsField.value = (link.tags || []).join(', ');
   submitBtn.textContent = 'Save changes';
   cancelBtn.style.display = 'inline-block';
   nameField.focus();
@@ -332,7 +395,8 @@ cancelBtn.addEventListener('click', resetForm);
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const payload = { name: nameField.value.trim(), url: urlField.value.trim() };
+  const tags = tagsField.value.split(',').map((t) => t.trim()).filter(Boolean);
+  const payload = { name: nameField.value.trim(), url: urlField.value.trim(), tags };
   const id = idField.value;
   const res = await fetch(id ? `/api/links/${id}` : '/api/links', {
     method: id ? 'PUT' : 'POST',
@@ -348,9 +412,9 @@ form.addEventListener('submit', async (e) => {
   fetchLinks();
 });
 
-async function deleteLink(id) {
-  if (!confirm('Delete this link?')) return;
-  const res = await fetch(`/api/links/${id}`, { method: 'DELETE' });
+async function deleteLink(link) {
+  if (!confirm(`Delete "${link.name}"? This can't be undone.`)) return;
+  const res = await fetch(`/api/links/${link.id}`, { method: 'DELETE' });
   if (res.status === 401) return handleSessionExpired();
   if (!res.ok && res.status !== 204) {
     alert('Failed to delete link: ' + (await res.text()));

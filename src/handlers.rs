@@ -32,7 +32,7 @@ pub async fn list_links(
     Query(params): Query<SearchQuery>,
 ) -> impl IntoResponse {
     let conn = state.db.lock().unwrap();
-    match db::list_links(&conn, params.q.as_deref()) {
+    match db::list_links(&conn, params.q.as_deref(), params.tag.as_deref()) {
         Ok(links) => Json(links).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -49,7 +49,7 @@ pub async fn create_link(
         return (StatusCode::BAD_REQUEST, "name and url are required").into_response();
     }
     let conn = state.db.lock().unwrap();
-    match db::create_link(&conn, input.name.trim(), input.url.trim()) {
+    match db::create_link(&conn, input.name.trim(), input.url.trim(), &input.tags) {
         Ok(link) => (StatusCode::CREATED, Json(link)).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -69,7 +69,7 @@ pub async fn update_link(
         return (StatusCode::BAD_REQUEST, "name and url are required").into_response();
     }
     let conn = state.db.lock().unwrap();
-    match db::update_link(&conn, id, input.name.trim(), input.url.trim()) {
+    match db::update_link(&conn, id, input.name.trim(), input.url.trim(), &input.tags) {
         Ok(Some(link)) => Json(link).into_response(),
         Ok(None) => (StatusCode::NOT_FOUND, "link not found").into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
