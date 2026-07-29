@@ -11,6 +11,8 @@ pub struct Link {
     pub url: String,
     /// RFC 3339 UTC timestamp, set automatically on create/update.
     pub date_modified: String,
+    /// Tag names, lowercased and alphabetically sorted.
+    pub tags: Vec<String>,
 }
 
 /// Request body for creating or updating a link.
@@ -18,6 +20,10 @@ pub struct Link {
 pub struct LinkInput {
     pub name: String,
     pub url: String,
+    /// Defaults to empty so a client that omits the field entirely (rather
+    /// than sending `[]`) doesn't get rejected.
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// Query parameters accepted by the list-links endpoint.
@@ -25,6 +31,9 @@ pub struct LinkInput {
 pub struct SearchQuery {
     /// Optional case-insensitive substring to filter links by name or URL.
     pub q: Option<String>,
+    /// Optional tag name to filter by (case-insensitive; combined with `q`
+    /// via AND when both are present).
+    pub tag: Option<String>,
 }
 
 /// Request body for `/api/login`.
