@@ -10,6 +10,7 @@ editing, and deleting bookmarks, backed by a local SQLite database.
 Each link has:
 - **Name**
 - **URL**
+- **Tags** (zero or more; optional)
 - **Date modified** (set automatically on create/update)
 
 ## Requirements
@@ -180,10 +181,16 @@ which browsers will need to re-trust).
 
 ## Usage
 
-- **Add a link**: fill in Name and URL in the form and click "Add link"
-  (requires login).
+- **Add a link**: fill in Name and URL (and optionally Tags, comma-separated)
+  in the form and click "Add link" (requires login).
 - **Search**: type in the search box to filter links by name or URL (matches
   as you type) — no login required.
+- **Tag a link**: enter comma-separated tags in the Tags field when adding or
+  editing a link. Tags are trimmed and lowercased, so `Rust` and `rust` are
+  the same tag.
+- **Filter by tag**: click a tag pill under any link to filter the list down
+  to links with that tag (combines with the search box); click "Clear" to
+  remove the filter.
 - **Edit**: click "Edit" on a row to load it into the form, make changes, and
   click "Save changes" (or "Cancel" to discard).
 - **Delete**: click "Delete" on a row and confirm.
@@ -194,16 +201,21 @@ which browsers will need to re-trust).
 The page is a thin client over a small JSON API, also usable directly.
 Endpoints marked 🔒 require an authenticated session cookie.
 
-| Method | Path              | Body                             | Description                                |
-|--------|-------------------|-----------------------------------|---------------------------------------------|
-| GET    | `/api/links`      | —                                  | List all links, newest modified first        |
-| GET    | `/api/links?q=x`  | —                                  | List links where name or URL contains `x`    |
-| POST 🔒 | `/api/links`      | `{"name": "...", "url": "..."}`   | Create a link                                |
-| PUT 🔒  | `/api/links/:id`  | `{"name": "...", "url": "..."}`   | Update a link                                |
-| DELETE 🔒 | `/api/links/:id`  | —                                | Delete a link                                |
-| POST   | `/api/login`      | `{"username": "...", "password": "..."}` | Log in, sets session cookie           |
-| POST   | `/api/logout`     | —                                  | Log out, clears session                      |
-| GET    | `/api/me`         | —                                  | Current user, or 401 if not logged in        |
+| Method | Path                     | Body                                        | Description                                     |
+|--------|--------------------------|----------------------------------------------|--------------------------------------------------|
+| GET    | `/api/links`             | —                                            | List all links, newest modified first             |
+| GET    | `/api/links?q=x`         | —                                            | List links where name or URL contains `x`          |
+| GET    | `/api/links?tag=x`       | —                                            | List links tagged `x` (case-insensitive); combine with `?q=` — a link must match both |
+| POST 🔒 | `/api/links`             | `{"name": "...", "url": "...", "tags": ["..."]}` | Create a link (`tags` optional, defaults to `[]`) |
+| PUT 🔒  | `/api/links/:id`         | `{"name": "...", "url": "...", "tags": ["..."]}` | Update a link, replacing its tags                 |
+| DELETE 🔒 | `/api/links/:id`       | —                                            | Delete a link                                     |
+| POST   | `/api/login`             | `{"username": "...", "password": "..."}`     | Log in, sets session cookie                       |
+| POST   | `/api/logout`            | —                                            | Log out, clears session                           |
+| GET    | `/api/me`                | —                                            | Current user, or 401 if not logged in             |
+
+Tags returned in responses are always lowercased, trimmed, and deduplicated —
+this normalization happens server-side regardless of what casing/whitespace
+was submitted.
 
 Example (using a cookie jar to carry the session; `-k` skips certificate
 verification, needed since it's self-signed):
@@ -215,7 +227,9 @@ curl -k -c cookies.txt -X POST https://localhost:3000/api/login \
 
 curl -k -b cookies.txt -X POST https://localhost:3000/api/links \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Anthropic","url":"https://anthropic.com"}'
+  -d '{"name":"Anthropic","url":"https://anthropic.com","tags":["ai","company"]}'
+
+curl -k -b cookies.txt 'https://localhost:3000/api/links?tag=ai'
 ```
 
 ## Project layout
