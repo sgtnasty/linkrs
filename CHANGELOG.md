@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-30
+
+### Added
+
+- Sortable link list: click the Name, URL, or Modified column header to
+  sort by it (Name/URL case-insensitively, Modified by timestamp), with a
+  ▲/▼ indicator on the active column. Clicking the same header again
+  reverses the direction; clicking a different header switches to it,
+  starting ascending. Purely client-side over the already-fetched list, so
+  it composes with the existing search and tag filters without extra
+  requests.
+
 ## [0.3.0] - 2026-07-29
 
 ### Added
