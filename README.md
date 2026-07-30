@@ -197,6 +197,8 @@ which browsers will need to re-trust).
 - **Filter by tag**: click a tag pill under any link to filter the list down
   to links with that tag (combines with the search box); click "Clear" to
   remove the filter.
+- **Sort**: click a column header (Name, URL, or Modified) to sort the list
+  by it; click the same header again to reverse the direction.
 - **Edit**: click "Edit" on a row to load it into the form, make changes, and
   click "Save changes" (or "Cancel" to discard).
 - **Delete**: click "Delete" on a row and confirm.
