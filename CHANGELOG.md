@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-30
+
+### Added
+
+- Favicon: `GET /favicon.ico` serves the linkrs icon logo, embedded into the
+  binary at compile time (same approach as the embedded `index.html`), and
+  linked from the page `<head>`.
+- Logo assets (`media/`): PNG (horizontal, icon) and SVG source (horizontal,
+  icon, stacked) versions of the linkrs logo, also referenced from the
+  README.
+
 ## [0.4.0] - 2026-07-30
 
 ### Added
