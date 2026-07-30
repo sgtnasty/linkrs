@@ -1,5 +1,7 @@
 # linkrs
 
+![linkrs](media/linkrs-logo-horizontal.png)
+
 [![Docker Pulls](https://img.shields.io/docker/pulls/sgtnasty/linkrs)](https://hub.docker.com/r/sgtnasty/linkrs)
 [![Docker Image Version](https://img.shields.io/docker/v/sgtnasty/linkrs?sort=semver)](https://hub.docker.com/r/sgtnasty/linkrs)
 [![GHCR](https://img.shields.io/badge/ghcr.io-sgtnasty%2Flinkrs-blue?logo=github)](https://github.com/sgtnasty/linkrs/pkgs/container/linkrs)
