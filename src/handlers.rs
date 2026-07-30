@@ -6,7 +6,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{header, StatusCode},
     response::{Html, IntoResponse},
     Json,
 };
@@ -22,6 +22,16 @@ use crate::state::AppState;
 /// failure mode) at runtime.
 pub async fn index() -> Html<&'static str> {
     Html(include_str!("../static/index.html"))
+}
+
+/// `GET /favicon.ico` — serves the linkrs icon logo, embedded into the
+/// binary at compile time via [`include_bytes!`] (same reasoning as
+/// [`index`]).
+pub async fn favicon() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "image/png")],
+        include_bytes!("../media/linkrs-logo-icon.png").as_slice(),
+    )
 }
 
 /// `GET /api/links` — lists all links, or those matching `?q=` if present.

@@ -16,11 +16,12 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs \
     && cargo build --release \
     && rm -rf src
 
-# static/index.html is embedded into the binary at compile time via
-# include_str!, so it must be present for this build, but not in the final
-# image.
+# static/index.html and media/linkrs-logo-icon.png are embedded into the
+# binary at compile time via include_str!/include_bytes!, so they must be
+# present for this build, but not in the final image.
 COPY src ./src
 COPY static ./static
+COPY media ./media
 # COPY can preserve mtimes that Cargo's fingerprinting considers "not newer"
 # than the dummy build above, which would otherwise make it skip recompiling
 # and silently ship the fn main() {} stub. Force fresh mtimes so the real
