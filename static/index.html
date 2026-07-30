@@ -107,6 +107,9 @@
     font-size: 0.9rem;
   }
   th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--text); }
+  .sort-indicator { display: inline-block; width: 1em; margin-left: 0.2rem; }
   td.actions { white-space: nowrap; text-align: right; }
   td.actions button { margin-left: 0.4rem; padding: 0.35rem 0.7rem; font-size: 0.8rem; }
   a.link-url { color: var(--accent); text-decoration: none; word-break: break-all; }
@@ -216,9 +219,9 @@
     <table>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>URL</th>
-          <th>Modified</th>
+          <th class="sortable" data-sort="name">Name<span class="sort-indicator"></span></th>
+          <th class="sortable" data-sort="url">URL<span class="sort-indicator"></span></th>
+          <th class="sortable" data-sort="date_modified">Modified<span class="sort-indicator"></span></th>
           <th></th>
         </tr>
       </thead>
@@ -257,6 +260,47 @@ let searchTimer = null;
 let currentUser = null;
 let currentLinks = [];
 let activeTag = null;
+let sortColumn = null;
+let sortDirection = 'asc';
+
+const sortableHeaders = document.querySelectorAll('th.sortable');
+sortableHeaders.forEach((th) => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.sort;
+    sortDirection = sortColumn === col && sortDirection === 'asc' ? 'desc' : 'asc';
+    sortColumn = col;
+    updateSortIndicators();
+    renderLinks(currentLinks);
+  });
+});
+
+function updateSortIndicators() {
+  sortableHeaders.forEach((th) => {
+    const indicator = th.querySelector('.sort-indicator');
+    indicator.textContent = th.dataset.sort === sortColumn
+      ? (sortDirection === 'asc' ? '▲' : '▼')
+      : '';
+  });
+}
+
+function sortLinks(links) {
+  if (!sortColumn) return links;
+  const dir = sortDirection === 'asc' ? 1 : -1;
+  return [...links].sort((a, b) => {
+    let av = a[sortColumn];
+    let bv = b[sortColumn];
+    if (sortColumn === 'date_modified') {
+      av = new Date(av).getTime();
+      bv = new Date(bv).getTime();
+    } else {
+      av = (av || '').toLowerCase();
+      bv = (bv || '').toLowerCase();
+    }
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+}
 
 function formatDate(iso) {
   const d = new Date(iso);
@@ -336,9 +380,10 @@ function renderTags(tags) {
 }
 
 function renderLinks(links) {
+  const sorted = sortLinks(links);
   rowsBody.innerHTML = '';
-  emptyState.style.display = links.length === 0 ? 'block' : 'none';
-  for (const link of links) {
+  emptyState.style.display = sorted.length === 0 ? 'block' : 'none';
+  for (const link of sorted) {
     const tr = document.createElement('tr');
     const actions = currentUser
       ? `<button type="button" class="secondary edit-btn">Edit</button>
