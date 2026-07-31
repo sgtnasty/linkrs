@@ -82,6 +82,7 @@ async fn main() {
             "/api/links/:id",
             put(handlers::update_link).delete(handlers::delete_link),
         )
+        .route("/api/change-password", post(auth::change_password))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_auth,

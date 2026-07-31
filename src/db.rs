@@ -108,6 +108,24 @@ pub fn get_user_password_hash(conn: &Connection, username: &str) -> Result<Optio
     })
 }
 
+/// Updates a user's stored password hash.
+///
+/// `password_hash` must already be a PHC-formatted Argon2 hash (see
+/// [`crate::auth::hash_password`]) — this function does not hash it itself.
+/// Returns `false` if no user with that username exists, rather than an
+/// error.
+///
+/// # Errors
+///
+/// Returns an error if the update statement fails to execute.
+pub fn update_password(conn: &Connection, username: &str, password_hash: &str) -> Result<bool> {
+    let updated = conn.execute(
+        "UPDATE users SET password_hash = ?1 WHERE username = ?2",
+        params![password_hash, username],
+    )?;
+    Ok(updated > 0)
+}
+
 /// Lists links, optionally filtered by a case-insensitive substring match on
 /// name or URL and/or by an exact (normalized, see [`set_tags_for_link`]) tag
 /// name, ordered by most recently modified first. When both filters are
