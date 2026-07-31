@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `docker-compose.yml` now pins the image to a specific version tag
+  (`0.8.0`) instead of `latest`, so upgrades are a deliberate tag bump
+  rather than an implicit pull that could land a backward-incompatible
+  schema change on an existing deployment.
+
 ## [0.8.0] - 2026-07-31
 
 ### Added
