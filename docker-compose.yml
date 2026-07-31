@@ -22,3 +22,4 @@ services:
 
 volumes:
   linkrs-data:
+    name: linkrs-data

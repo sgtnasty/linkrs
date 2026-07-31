@@ -103,7 +103,11 @@ docker run -d --name linkrs \
 ### Using Docker Compose
 
 `docker-compose.yml` runs the pre-built image from GHCR instead of building
-locally, with the same volume and admin-credential env vars as above:
+locally, with the same volume and admin-credential env vars as above. Its
+volume is explicitly named `linkrs-data` (rather than the
+project-name-prefixed default Compose would otherwise use), so it reuses
+the same named volume as the `docker run -v linkrs-data:/data` examples
+above:
 
 ```bash
 docker compose up -d

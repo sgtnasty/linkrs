@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-07-31
+
+### Fixed
+
+- `docker-compose.yml`'s volume now has an explicit `name: linkrs-data`, so
+  `docker compose`/`podman compose` reuses the same named volume as the
+  `docker run -v linkrs-data:/data` examples in the README, instead of
+  creating a separate project-prefixed `linkrs_linkrs-data` volume.
+
 ## [0.7.0] - 2026-07-31
 
 ### Added
