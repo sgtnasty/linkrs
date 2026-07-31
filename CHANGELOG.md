@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-31
+
+### Changed
+
+- Favicon now serves the light-background variant of the icon
+  (`media/linkrs-logo-icon-light.png`) instead of the dark one.
+
 ## [0.5.0] - 2026-07-30
 
 ### Added

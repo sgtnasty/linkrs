@@ -30,7 +30,7 @@ pub async fn index() -> Html<&'static str> {
 pub async fn favicon() -> impl IntoResponse {
     (
         [(header::CONTENT_TYPE, "image/png")],
-        include_bytes!("../media/linkrs-logo-icon.png").as_slice(),
+        include_bytes!("../media/linkrs-logo-icon-light.png").as_slice(),
     )
 }
 
