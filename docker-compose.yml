@@ -1,0 +1,24 @@
+services:
+  linkrs:
+    image: ghcr.io/sgtnasty/linkrs:latest
+    container_name: linkrs
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - linkrs-data:/data
+    environment:
+      # Only read once, the first time the server starts with an empty
+      # database — set these to pin the bootstrap admin account's
+      # credentials instead of getting a random generated password (see
+      # `docker logs linkrs`). Changing them later has no effect on an
+      # already-created account.
+      LINKRS_ADMIN_USER: admin
+      LINKRS_ADMIN_PASSWORD: change-me
+      # Comma-separated extra hostnames/IPs for the self-signed TLS
+      # certificate, beyond the default localhost/127.0.0.1. Only read once,
+      # the first time cert.pem/key.pem are generated.
+      # LINKRS_TLS_SAN: example.internal,192.168.1.50
+
+volumes:
+  linkrs-data:
