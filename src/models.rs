@@ -49,3 +49,10 @@ pub struct LoginInput {
 pub struct CurrentUser {
     pub username: String,
 }
+
+/// Request body for `/api/change-password`.
+#[derive(Debug, Deserialize)]
+pub struct ChangePasswordInput {
+    pub current_password: String,
+    pub new_password: String,
+}

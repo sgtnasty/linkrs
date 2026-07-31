@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-31
+
+### Added
+
+- Change password: a "Change password" link next to the signed-in username
+  opens a form to set a new password (current password required). Backed by
+  a new `POST /api/change-password` endpoint, which returns `403` for a
+  wrong current password (distinct from `401`, reserved for an invalid/
+  expired session) and `400` for an empty new password.
+
 ## [0.7.1] - 2026-07-31
 
 ### Fixed

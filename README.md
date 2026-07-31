@@ -225,6 +225,8 @@ which browsers will need to re-trust).
   click "Save changes" (or "Cancel" to discard).
 - **Delete**: click "Delete" on a row and confirm.
 - **Log in / out**: use the bar above the forms.
+- **Change password**: click "Change password" next to your username, enter
+  your current password and a new one twice, and submit.
 
 ## API
 
@@ -242,6 +244,7 @@ Endpoints marked 🔒 require an authenticated session cookie.
 | POST   | `/api/login`             | `{"username": "...", "password": "..."}`     | Log in, sets session cookie                       |
 | POST   | `/api/logout`            | —                                            | Log out, clears session                           |
 | GET    | `/api/me`                | —                                            | Current user, or 401 if not logged in             |
+| POST 🔒 | `/api/change-password`  | `{"current_password": "...", "new_password": "..."}` | Change the current user's password. `403` if `current_password` doesn't match, `400` if `new_password` is empty |
 
 Tags returned in responses are always lowercased, trimmed, and deduplicated —
 this normalization happens server-side regardless of what casing/whitespace

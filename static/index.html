@@ -146,6 +146,17 @@
     color: var(--muted);
   }
   .auth-bar button { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+  .link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    margin-left: 0.6rem;
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .link-btn:hover { background: none; text-decoration: underline; }
   .login-card .row { align-items: flex-end; }
   .login-card button { flex: 0 0 auto; }
   .error-text { color: var(--danger); font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.1em; }
@@ -158,8 +169,35 @@
   <h1>linkrs</h1>
 
   <div class="auth-bar">
-    <span id="auth-status"></span>
+    <span>
+      <span id="auth-status"></span>
+      <button type="button" class="link-btn" id="change-password-btn" style="display:none">Change password</button>
+    </span>
     <button type="button" class="secondary" id="logout-btn" style="display:none">Log out</button>
+  </div>
+
+  <div class="card" id="change-password-card" style="display:none">
+    <form id="change-password-form">
+      <div class="row">
+        <div>
+          <label for="current-password">Current password</label>
+          <input type="password" id="current-password" required autocomplete="current-password">
+        </div>
+        <div>
+          <label for="new-password">New password</label>
+          <input type="password" id="new-password" required autocomplete="new-password">
+        </div>
+        <div>
+          <label for="confirm-password">Confirm new password</label>
+          <input type="password" id="confirm-password" required autocomplete="new-password">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit">Change password</button>
+        <button type="button" class="secondary" id="cancel-change-password-btn">Cancel</button>
+      </div>
+      <div class="error-text" id="change-password-error"></div>
+    </form>
   </div>
 
   <div class="card login-card" id="login-card">
@@ -260,6 +298,15 @@ const loginError = document.getElementById('login-error');
 const linkFormCard = document.getElementById('link-form-card');
 const readonlyHint = document.getElementById('readonly-hint');
 
+const changePasswordBtn = document.getElementById('change-password-btn');
+const changePasswordCard = document.getElementById('change-password-card');
+const changePasswordForm = document.getElementById('change-password-form');
+const currentPasswordField = document.getElementById('current-password');
+const newPasswordField = document.getElementById('new-password');
+const confirmPasswordField = document.getElementById('confirm-password');
+const changePasswordError = document.getElementById('change-password-error');
+const cancelChangePasswordBtn = document.getElementById('cancel-change-password-btn');
+
 let searchTimer = null;
 let currentUser = null;
 let currentLinks = [];
@@ -328,18 +375,27 @@ function renderAuthUI() {
   if (currentUser) {
     authStatus.textContent = `Signed in as ${currentUser}`;
     logoutBtn.style.display = 'inline-block';
+    changePasswordBtn.style.display = 'inline';
     loginCard.style.display = 'none';
     linkFormCard.style.display = 'block';
     readonlyHint.style.display = 'none';
   } else {
     authStatus.textContent = 'Not signed in';
     logoutBtn.style.display = 'none';
+    changePasswordBtn.style.display = 'none';
     loginCard.style.display = 'block';
     linkFormCard.style.display = 'none';
     readonlyHint.style.display = 'block';
     resetForm();
+    resetChangePasswordForm();
   }
   renderLinks(currentLinks);
+}
+
+function resetChangePasswordForm() {
+  changePasswordCard.style.display = 'none';
+  changePasswordForm.reset();
+  changePasswordError.textContent = '';
 }
 
 loginForm.addEventListener('submit', async (e) => {
@@ -362,6 +418,41 @@ logoutBtn.addEventListener('click', async () => {
   await fetch('/api/logout', { method: 'POST' });
   currentUser = null;
   renderAuthUI();
+});
+
+changePasswordBtn.addEventListener('click', () => {
+  changePasswordCard.style.display = 'block';
+  currentPasswordField.focus();
+});
+
+cancelChangePasswordBtn.addEventListener('click', resetChangePasswordForm);
+
+changePasswordForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  changePasswordError.textContent = '';
+  if (newPasswordField.value !== confirmPasswordField.value) {
+    changePasswordError.textContent = 'New passwords do not match.';
+    return;
+  }
+  const res = await fetch('/api/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      current_password: currentPasswordField.value,
+      new_password: newPasswordField.value,
+    }),
+  });
+  if (res.status === 401) return handleSessionExpired();
+  if (res.status === 403) {
+    changePasswordError.textContent = 'Current password is incorrect.';
+    return;
+  }
+  if (!res.ok) {
+    changePasswordError.textContent = await res.text();
+    return;
+  }
+  resetChangePasswordForm();
+  alert('Password changed.');
 });
 
 async function fetchLinks() {

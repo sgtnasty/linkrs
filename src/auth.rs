@@ -28,7 +28,7 @@ use argon2::{
 };
 
 use crate::db;
-use crate::models::{CurrentUser, LoginInput};
+use crate::models::{ChangePasswordInput, CurrentUser, LoginInput};
 use crate::state::{AppState, Session};
 
 /// Name of the cookie that carries the session token.
@@ -254,6 +254,53 @@ pub async fn me(State(state): State<AppState>, jar: CookieJar) -> impl IntoRespo
     match username {
         Some(username) => Json(CurrentUser { username }).into_response(),
         None => StatusCode::UNAUTHORIZED.into_response(),
+    }
+}
+
+/// `POST /api/change-password` — changes the current user's password.
+/// Mounted behind [`require_auth`] in `main.rs`.
+///
+/// Returns `400 Bad Request` if `new_password` is empty after trimming, or
+/// `403 Forbidden` if `current_password` doesn't match the account's
+/// existing password. This is deliberately `403`, not `401`: the session is
+/// already known valid (that's what `require_auth` checked before this
+/// handler ran) — `401` is reserved for "who are you" failures, and reusing
+/// it here would make the frontend unable to tell a wrong current password
+/// apart from an expired session.
+pub async fn change_password(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Json(input): Json<ChangePasswordInput>,
+) -> impl IntoResponse {
+    // require_auth already guarantees a valid session; this re-extracts the
+    // username from it since middleware doesn't inject identity into the
+    // request, and the handler needs to know *whose* password to check.
+    let Some(username) = jar
+        .get(SESSION_COOKIE)
+        .and_then(|c| current_username(&state, c.value()))
+    else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    if input.new_password.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, "new password is required").into_response();
+    }
+
+    let conn = state.db.lock().unwrap();
+    let hash = match db::get_user_password_hash(&conn, &username) {
+        Ok(Some(hash)) => hash,
+        Ok(None) => return StatusCode::UNAUTHORIZED.into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+
+    if !verify_password(&input.current_password, &hash) {
+        return (StatusCode::FORBIDDEN, "current password is incorrect").into_response();
+    }
+
+    let new_hash = hash_password(input.new_password.trim());
+    match db::update_password(&conn, &username, &new_hash) {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
