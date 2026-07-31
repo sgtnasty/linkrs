@@ -150,6 +150,7 @@
   .login-card button { flex: 0 0 auto; }
   .error-text { color: var(--danger); font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.1em; }
   .hint { color: var(--muted); font-size: 0.85rem; }
+  .footer { color: var(--muted); font-size: 0.8rem; text-align: center; margin-top: 1.5rem; }
 </style>
 </head>
 <body>
@@ -230,6 +231,8 @@
     </table>
     <div class="empty" id="empty-state" style="display:none">No links yet.</div>
   </div>
+
+  <div class="footer">linkrs v{{VERSION}}</div>
 </div>
 
 <script>

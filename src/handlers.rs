@@ -19,9 +19,11 @@ use crate::state::AppState;
 ///
 /// The HTML is embedded into the binary at compile time via
 /// [`include_str!`], so there's no filesystem lookup (or missing-file
-/// failure mode) at runtime.
-pub async fn index() -> Html<&'static str> {
-    Html(include_str!("../static/index.html"))
+/// failure mode) at runtime. The `{{VERSION}}` placeholder in its footer is
+/// substituted with the crate version on every request — cheap enough for a
+/// single small file that it isn't worth caching.
+pub async fn index() -> Html<String> {
+    Html(include_str!("../static/index.html").replace("{{VERSION}}", env!("CARGO_PKG_VERSION")))
 }
 
 /// `GET /favicon.ico` — serves the linkrs icon logo, embedded into the

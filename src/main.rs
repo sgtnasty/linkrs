@@ -112,7 +112,10 @@ async fn main() {
         shutdown_handle.graceful_shutdown(None);
     });
 
-    tracing::info!("linkrs listening on https://0.0.0.0:3000");
+    tracing::info!(
+        "linkrs v{} listening on https://0.0.0.0:3000",
+        env!("CARGO_PKG_VERSION")
+    );
     axum_server::tls_rustls::bind_rustls(addr, tls_config)
         .handle(handle)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
