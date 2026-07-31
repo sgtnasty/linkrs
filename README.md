@@ -100,6 +100,22 @@ docker run -d --name linkrs \
   linkrs
 ```
 
+### Using Docker Compose
+
+`docker-compose.yml` runs the pre-built image from GHCR instead of building
+locally, with the same volume and admin-credential env vars as above:
+
+```bash
+docker compose up -d
+```
+
+(or `podman compose up -d` — either works). Edit `LINKRS_ADMIN_PASSWORD` in
+`docker-compose.yml` before deploying anywhere reachable by others; it's only
+read the first time the container starts with an empty database, same as
+the `docker run -e` form above. Uncomment and set `LINKRS_TLS_SAN` there too
+if you need the certificate to cover a hostname/IP beyond
+`localhost`/`127.0.0.1`.
+
 The image is a multi-stage build: a `rust:1-slim-bookworm` stage compiles a
 release binary (SQLite is compiled in via `rusqlite`'s `bundled` feature, so
 a C toolchain is needed there but not at runtime), and the final image is
