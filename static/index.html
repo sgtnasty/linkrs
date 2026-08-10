@@ -97,6 +97,9 @@
   .search {
     margin-bottom: 1rem;
   }
+  .export-bar { margin-top: 0.6rem; font-size: 0.85rem; text-align: right; }
+  .export-bar a { color: var(--accent); text-decoration: none; }
+  .export-bar a:hover { text-decoration: underline; }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -254,6 +257,9 @@
     <div class="tag-filter-bar" id="tag-filter-bar" style="display:none">
       Filtering by tag: <strong id="tag-filter-label"></strong>
       <button type="button" class="secondary" id="clear-tag-filter">Clear</button>
+    </div>
+    <div class="export-bar">
+      <a href="/api/links/export" download="linkrs-bookmarks.html">Export all links as HTML</a>
     </div>
   </div>
 

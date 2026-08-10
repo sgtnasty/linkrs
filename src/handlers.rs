@@ -1,8 +1,8 @@
 //! HTTP handlers for serving the single-page UI and the link CRUD API.
 //!
 //! `create_link`, `update_link`, and `delete_link` are mounted behind the
-//! [`crate::auth::require_auth`] middleware in `main.rs`; `index` and
-//! `list_links` are public.
+//! [`crate::auth::require_auth`] middleware in `main.rs`; `index`,
+//! `list_links`, and `export_links` are public.
 
 use axum::{
     extract::{Path, Query, State},
@@ -12,7 +12,7 @@ use axum::{
 };
 
 use crate::db;
-use crate::models::{LinkInput, SearchQuery};
+use crate::models::{Link, LinkInput, SearchQuery};
 use crate::state::AppState;
 
 /// Serves the single-page app shell.
@@ -48,6 +48,82 @@ pub async fn list_links(
         Ok(links) => Json(links).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
+}
+
+/// `GET /api/links/export` — exports every link as a Netscape bookmark file.
+///
+/// Public, for the same reason [`list_links`] is: reading links is open to
+/// anyone (see the README's "Authentication" section). Served with a
+/// `Content-Disposition` attachment header so browsers download it rather
+/// than rendering it.
+pub async fn export_links(State(state): State<AppState>) -> impl IntoResponse {
+    let conn = state.db.lock().unwrap();
+    match db::list_links(&conn, None, None) {
+        Ok(links) => (
+            [
+                (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+                (
+                    header::CONTENT_DISPOSITION,
+                    "attachment; filename=\"linkrs-bookmarks.html\"",
+                ),
+            ],
+            render_netscape_bookmarks(&links),
+        )
+            .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// Renders `links` as a Netscape bookmark file — the de-facto interchange
+/// format every browser (and most bookmarking services) accepts on import.
+///
+/// The format is a flat `<DL>` list of `<DT><A>` entries; the odd unclosed
+/// tags and the `<!DOCTYPE NETSCAPE-Bookmark-file-1>` line are load-bearing
+/// for importers, so don't "tidy" them into well-formed HTML.
+///
+/// `ADD_DATE` and `LAST_MODIFIED` both carry `date_modified` as a Unix
+/// timestamp, since there's no created-at column to draw a real `ADD_DATE`
+/// from. A `date_modified` that doesn't parse as RFC 3339 (nothing writes
+/// one today, but the column is plain TEXT) leaves both attributes off that
+/// entry rather than failing the whole export.
+fn render_netscape_bookmarks(links: &[Link]) -> String {
+    let mut out = String::from(
+        "<!DOCTYPE NETSCAPE-Bookmark-file-1>\n\
+         <!-- This is an automatically generated file.\n\
+         \x20    It will be read and overwritten.\n\
+         \x20    DO NOT EDIT! -->\n\
+         <META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=UTF-8\">\n\
+         <TITLE>Bookmarks</TITLE>\n\
+         <H1>Bookmarks</H1>\n\
+         <DL><p>\n",
+    );
+    for link in links {
+        let mut attrs = format!("HREF=\"{}\"", html_escape(&link.url));
+        if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(&link.date_modified) {
+            let epoch = ts.timestamp();
+            attrs.push_str(&format!(" ADD_DATE=\"{epoch}\" LAST_MODIFIED=\"{epoch}\""));
+        }
+        if !link.tags.is_empty() {
+            attrs.push_str(&format!(" TAGS=\"{}\"", html_escape(&link.tags.join(","))));
+        }
+        out.push_str(&format!(
+            "    <DT><A {attrs}>{}</A>\n",
+            html_escape(&link.name)
+        ));
+    }
+    out.push_str("</DL><p>\n");
+    out
+}
+
+/// Escapes the characters that would otherwise break out of HTML text or a
+/// double-quoted attribute value. `&` is replaced first so the ampersands
+/// introduced by the later replacements aren't escaped a second time.
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 /// `POST /api/links` — creates a link. Requires authentication.

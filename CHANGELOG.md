@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Export all links as HTML: a new `GET /api/links/export` endpoint returns
+  every link as a Netscape bookmark file (the format browsers import under
+  "Import bookmarks from HTML"), served as a download, with tags carried in
+  the `TAGS` attribute. A link under the search box triggers it from the UI.
+  The endpoint is public, like `GET /api/links` — exporting is a read, and
+  reading links is deliberately open to anyone (see the README's
+  "Authentication" section). Since there's no created-at column, `ADD_DATE`
+  and `LAST_MODIFIED` both carry the link's `date_modified`.
+
 ### Changed
 
 - `docker-compose.yml` now pins the image to a specific version tag
