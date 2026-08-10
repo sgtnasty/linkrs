@@ -224,6 +224,10 @@ which browsers will need to re-trust).
 - **Edit**: click "Edit" on a row to load it into the form, make changes, and
   click "Save changes" (or "Cancel" to discard).
 - **Delete**: click "Delete" on a row and confirm.
+- **Export**: click "Export all links as HTML" under the search box to
+  download every link as a Netscape bookmark file — the format browsers
+  accept under "Import bookmarks from HTML". No login required, and the
+  export always covers all links, ignoring the current search/tag filter.
 - **Log in / out**: use the bar above the forms.
 - **Change password**: click "Change password" next to your username, enter
   your current password and a new one twice, and submit.
@@ -238,6 +242,7 @@ Endpoints marked 🔒 require an authenticated session cookie.
 | GET    | `/api/links`             | —                                            | List all links, newest modified first             |
 | GET    | `/api/links?q=x`         | —                                            | List links where name or URL contains `x`          |
 | GET    | `/api/links?tag=x`       | —                                            | List links tagged `x` (case-insensitive); combine with `?q=` — a link must match both |
+| GET    | `/api/links/export`      | —                                            | Export all links as a Netscape bookmark HTML file (browser-importable) |
 | POST 🔒 | `/api/links`             | `{"name": "...", "url": "...", "tags": ["..."]}` | Create a link (`tags` optional, defaults to `[]`) |
 | PUT 🔒  | `/api/links/:id`         | `{"name": "...", "url": "...", "tags": ["..."]}` | Update a link, replacing its tags                 |
 | DELETE 🔒 | `/api/links/:id`       | —                                            | Delete a link                                     |
