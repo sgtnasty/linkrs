@@ -1,6 +1,6 @@
 services:
   linkrs:
-    image: ghcr.io/sgtnasty/linkrs:0.8.0
+    image: ghcr.io/sgtnasty/linkrs:0.9.0
     container_name: linkrs
     restart: unless-stopped
     ports:

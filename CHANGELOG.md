@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-10
+
 ### Added
 
 - Export all links as HTML: a new `GET /api/links/export` endpoint returns
@@ -17,11 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reading links is deliberately open to anyone (see the README's
   "Authentication" section). Since there's no created-at column, `ADD_DATE`
   and `LAST_MODIFIED` both carry the link's `date_modified`.
+- A link to the project's GitHub repository in the page footer, next to the
+  version string.
 
 ### Changed
 
 - `docker-compose.yml` now pins the image to a specific version tag
-  (`0.8.0`) instead of `latest`, so upgrades are a deliberate tag bump
+  (`0.9.0`) instead of `latest`, so upgrades are a deliberate tag bump
   rather than an implicit pull that could land a backward-incompatible
   schema change on an existing deployment.
 
