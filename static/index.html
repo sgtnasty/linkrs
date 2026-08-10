@@ -162,6 +162,8 @@
   .error-text { color: var(--danger); font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.1em; }
   .hint { color: var(--muted); font-size: 0.85rem; }
   .footer { color: var(--muted); font-size: 0.8rem; text-align: center; margin-top: 1.5rem; }
+  .footer a { color: var(--accent); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -270,7 +272,7 @@
     <div class="empty" id="empty-state" style="display:none">No links yet.</div>
   </div>
 
-  <div class="footer">linkrs v{{VERSION}}</div>
+  <div class="footer">linkrs v{{VERSION}} &middot; <a href="https://github.com/sgtnasty/linkrs" target="_blank" rel="noopener noreferrer">github.com/sgtnasty/linkrs</a></div>
 </div>
 
 <script>
