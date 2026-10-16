@@ -5,8 +5,8 @@
 //! so adding a link never waits on a slow or unreachable site. The result is
 //! stored in the `link_icons` table — including "checked, none found", so
 //! icon-less sites aren't re-fetched on every restart. A fetch that fails
-//! on a network error records nothing, leaving the link to be retried by
-//! the next startup's backfill.
+//! on a network error or a `429`/`5xx` response records nothing, leaving
+//! the link to be retried by the next startup's backfill.
 //!
 //! Only raster formats recognized by their magic bytes are accepted (see
 //! [`sniff_image_type`]); the server's `Content-Type` header is ignored, and
@@ -19,7 +19,7 @@
 
 use std::time::Duration;
 
-use reqwest::{redirect, Client, Response, Url};
+use reqwest::{redirect, Client, Response, StatusCode, Url};
 
 use crate::db;
 use crate::state::AppState;
@@ -58,7 +58,7 @@ pub fn spawn_fetch(state: AppState, link_id: i64, url: String) {
 
 /// Fetches icons, one at a time, for every link that has never been
 /// checked — links added before this feature existed, or whose last fetch
-/// hit a network error or was cut short by a restart.
+/// hit a network error or `429`/`5xx`, or was cut short by a restart.
 pub fn spawn_backfill(state: AppState) {
     tokio::spawn(async move {
         let pending = {
@@ -108,9 +108,10 @@ type Icon = (&'static str, Vec<u8>);
 /// then any `<link rel="icon">` (or `apple-touch-icon`) the page declares.
 ///
 /// `Ok(None)` means the site answered but has no usable icon (or the URL
-/// isn't http(s)), and is worth remembering; `Err` means fetching the page
-/// itself hit a transport error (DNS, connect, timeout) that may well be
-/// transient. A failure fetching one candidate icon just moves on to the
+/// isn't http(s)), and is worth remembering. `Err` means no icon was found
+/// but some request hit a possibly transient failure — a transport error
+/// (DNS, connect, timeout) or a `429`/`5xx` response — so it's worth
+/// retrying later. A failure on one candidate icon still moves on to the
 /// next, so a stalled `/favicon.ico` doesn't block the page's declared
 /// icons.
 async fn fetch_icon(client: &Client, page_url: &str) -> reqwest::Result<Option<Icon>> {
@@ -121,13 +122,16 @@ async fn fetch_icon(client: &Client, page_url: &str) -> reqwest::Result<Option<I
         return Ok(None);
     }
 
+    let mut transient = None;
     if let Ok(favicon_url) = page_url.join("/favicon.ico") {
-        if let Ok(Some(icon)) = fetch_image(client, favicon_url).await {
-            return Ok(Some(icon));
+        match fetch_image(client, favicon_url).await {
+            Ok(Some(icon)) => return Ok(Some(icon)),
+            Ok(None) => {}
+            Err(e) => transient = Some(e),
         }
     }
 
-    let resp = client.get(page_url).send().await?;
+    let resp = check_transient(client.get(page_url).send().await?)?;
     if !resp.status().is_success() || !is_html(&resp) {
         return Ok(None);
     }
@@ -140,23 +144,36 @@ async fn fetch_icon(client: &Client, page_url: &str) -> reqwest::Result<Option<I
         let Ok(icon_url) = base.join(&href) else {
             continue;
         };
-        if let Ok(Some(icon)) = fetch_image(client, icon_url).await {
-            return Ok(Some(icon));
+        match fetch_image(client, icon_url).await {
+            Ok(Some(icon)) => return Ok(Some(icon)),
+            Ok(None) => {}
+            Err(e) => transient = Some(e),
         }
     }
-    Ok(None)
+    transient.map_or(Ok(None), Err)
 }
 
 async fn fetch_image(client: &Client, url: Url) -> reqwest::Result<Option<Icon>> {
     if !matches!(url.scheme(), "http" | "https") {
         return Ok(None);
     }
-    let resp = client.get(url).send().await?;
+    let resp = check_transient(client.get(url).send().await?)?;
     if !resp.status().is_success() {
         return Ok(None);
     }
     let data = read_body(resp, MAX_ICON_BYTES, false).await?;
     Ok(data.and_then(|data| Some((sniff_image_type(&data)?, data))))
+}
+
+/// Turns a `429 Too Many Requests` or `5xx` response into an error, since
+/// the site may well answer properly later; passes anything else through.
+fn check_transient(resp: Response) -> reqwest::Result<Response> {
+    let status = resp.status();
+    if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
+        resp.error_for_status()
+    } else {
+        Ok(resp)
+    }
 }
 
 fn is_html(resp: &Response) -> bool {

@@ -240,7 +240,8 @@ which browsers will need to re-trust).
   refused, since icons are served from linkrs's own origin and an SVG can
   carry script), up to 100 KB. Links that existed before this feature get
   their icons fetched on the next startup, and a fetch that fails on a
-  network error is retried on the following startup.
+  network error (or a `429`/`5xx` response) is retried on the following
+  startup.
 - **Log in / out**: use the bar above the forms.
 - **Change password**: click "Change password" next to your username, enter
   your current password and a new one twice, and submit.
