@@ -47,6 +47,10 @@ Module layout (`src/`):
 - `models.rs` — request/response DTOs shared between `handlers.rs` and
   `auth.rs`.
 - `handlers.rs` — link CRUD HTTP handlers.
+- `favicon.rs` — background fetching of each link's site icon via the
+  shared `reqwest::Client` in `AppState`, spawned after create/URL change
+  and once at startup for unchecked links. Never hold the DB mutex across
+  an `.await` there — fetch first, then lock to store.
 - `auth.rs` — login/logout/me handlers, the `require_auth` middleware,
   password hashing (Argon2), session tokens, and the login rate limiter.
 

@@ -2,7 +2,7 @@
 //!
 //! `create_link`, `update_link`, and `delete_link` are mounted behind the
 //! [`crate::auth::require_auth`] middleware in `main.rs`; `index`,
-//! `list_links`, and `export_links` are public.
+//! `list_links`, `export_links`, and `link_icon` are public.
 
 use axum::{
     extract::{Path, Query, State},
@@ -12,6 +12,7 @@ use axum::{
 };
 
 use crate::db;
+use crate::favicon;
 use crate::models::{Link, LinkInput, SearchQuery};
 use crate::state::AppState;
 
@@ -46,6 +47,36 @@ pub async fn list_links(
     let conn = state.db.lock().unwrap();
     match db::list_links(&conn, params.q.as_deref(), params.tag.as_deref()) {
         Ok(links) => Json(links).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `GET /api/links/:id/icon` — serves the stored site icon for a link, or
+/// `404 Not Found` if there isn't one (yet).
+///
+/// Public, like [`list_links`]. Only sniffed raster formats are ever stored
+/// (no SVG — see [`crate::favicon`]); `nosniff` and a sandboxing CSP are
+/// sent anyway as defense in depth, since the bytes come from third-party
+/// sites and are served from this origin. Cached for a week: the frontend
+/// adds the link's `date_modified` as a query string, which changes
+/// whenever the URL (and so possibly the icon) does.
+pub async fn link_icon(State(state): State<AppState>, Path(id): Path<i64>) -> impl IntoResponse {
+    let conn = state.db.lock().unwrap();
+    match db::get_link_icon(&conn, id) {
+        Ok(Some((content_type, data))) => (
+            [
+                (header::CONTENT_TYPE, content_type),
+                (header::CACHE_CONTROL, "public, max-age=604800".to_string()),
+                (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_string()),
+                (
+                    header::CONTENT_SECURITY_POLICY,
+                    "default-src 'none'; sandbox".to_string(),
+                ),
+            ],
+            data,
+        )
+            .into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, "no icon").into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
@@ -129,6 +160,8 @@ fn html_escape(s: &str) -> String {
 /// `POST /api/links` — creates a link. Requires authentication.
 ///
 /// Returns `400 Bad Request` if `name` or `url` is empty after trimming.
+/// The link's icon is fetched in the background afterwards (see
+/// [`crate::favicon`]), so the response always has `has_icon: false`.
 pub async fn create_link(
     State(state): State<AppState>,
     Json(input): Json<LinkInput>,
@@ -136,9 +169,15 @@ pub async fn create_link(
     if input.name.trim().is_empty() || input.url.trim().is_empty() {
         return (StatusCode::BAD_REQUEST, "name and url are required").into_response();
     }
-    let conn = state.db.lock().unwrap();
-    match db::create_link(&conn, input.name.trim(), input.url.trim(), &input.tags) {
-        Ok(link) => (StatusCode::CREATED, Json(link)).into_response(),
+    let result = {
+        let conn = state.db.lock().unwrap();
+        db::create_link(&conn, input.name.trim(), input.url.trim(), &input.tags)
+    };
+    match result {
+        Ok(link) => {
+            favicon::spawn_fetch(state.clone(), link.id, link.url.clone());
+            (StatusCode::CREATED, Json(link)).into_response()
+        }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
@@ -147,7 +186,8 @@ pub async fn create_link(
 /// authentication.
 ///
 /// Returns `400 Bad Request` if `name` or `url` is empty after trimming, or
-/// `404 Not Found` if no link with `id` exists.
+/// `404 Not Found` if no link with `id` exists. If the URL changed, the old
+/// icon is dropped and a new one fetched in the background.
 pub async fn update_link(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -156,10 +196,19 @@ pub async fn update_link(
     if input.name.trim().is_empty() || input.url.trim().is_empty() {
         return (StatusCode::BAD_REQUEST, "name and url are required").into_response();
     }
-    let conn = state.db.lock().unwrap();
-    match db::update_link(&conn, id, input.name.trim(), input.url.trim(), &input.tags) {
-        Ok(Some(link)) => Json(link).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, "link not found").into_response(),
+    let result = {
+        let conn = state.db.lock().unwrap();
+        db::update_link(&conn, id, input.name.trim(), input.url.trim(), &input.tags)
+            .and_then(|link| Ok((link, db::icon_checked(&conn, id)?)))
+    };
+    match result {
+        Ok((Some(link), icon_checked)) => {
+            if !icon_checked {
+                favicon::spawn_fetch(state.clone(), link.id, link.url.clone());
+            }
+            Json(link).into_response()
+        }
+        Ok((None, _)) => (StatusCode::NOT_FOUND, "link not found").into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }

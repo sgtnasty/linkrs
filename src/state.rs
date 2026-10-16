@@ -21,9 +21,10 @@ pub struct Session {
 /// Application state shared across all request handlers via axum's
 /// [`axum::extract::State`] extractor.
 ///
-/// Cloning an `AppState` is cheap: all fields are [`Arc`]-wrapped, so a
-/// clone shares the same underlying connection, session map, and rate
-/// limiter rather than copying them.
+/// Cloning an `AppState` is cheap: all fields are [`Arc`]-wrapped (or, for
+/// [`reqwest::Client`], reference-counted internally), so a clone shares the
+/// same underlying connection, session map, rate limiter, and HTTP client
+/// rather than copying them.
 #[derive(Clone)]
 pub struct AppState {
     /// The single shared SQLite connection, guarded by a mutex since
@@ -35,4 +36,6 @@ pub struct AppState {
     /// Recent login attempt timestamps, keyed by client IP, used to rate
     /// limit `/api/login` in [`crate::auth`].
     pub login_attempts: Arc<Mutex<HashMap<IpAddr, VecDeque<Instant>>>>,
+    /// HTTP client for fetching link icons in [`crate::favicon`].
+    pub http: reqwest::Client,
 }

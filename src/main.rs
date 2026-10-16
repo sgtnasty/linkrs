@@ -7,6 +7,7 @@
 
 mod auth;
 mod db;
+mod favicon;
 mod handlers;
 mod models;
 mod state;
@@ -74,7 +75,9 @@ async fn main() {
         db: Arc::new(Mutex::new(conn)),
         sessions: Arc::new(Mutex::new(HashMap::new())),
         login_attempts: Arc::new(Mutex::new(HashMap::new())),
+        http: favicon::build_client(),
     };
+    favicon::spawn_backfill(state.clone());
 
     let protected = Router::new()
         .route("/api/links", post(handlers::create_link))
@@ -93,6 +96,7 @@ async fn main() {
         .route("/favicon.ico", get(handlers::favicon))
         .route("/api/links", get(handlers::list_links))
         .route("/api/links/export", get(handlers::export_links))
+        .route("/api/links/:id/icon", get(handlers::link_icon))
         .route("/api/login", post(auth::login))
         .route("/api/logout", post(auth::logout))
         .route("/api/me", get(auth::me));
