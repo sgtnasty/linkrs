@@ -119,6 +119,8 @@
   a.link-url { color: var(--accent); text-decoration: none; word-break: break-all; }
   a.link-url:hover { text-decoration: underline; }
   .empty { color: var(--muted); text-align: center; padding: 2rem 0; }
+  .link-title { display: flex; align-items: center; gap: 0.5rem; }
+  .link-icon { width: 16px; height: 16px; flex: none; object-fit: contain; }
   .tag-list { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
   .tag-badge {
     background: transparent;
@@ -482,6 +484,15 @@ function renderTags(tags) {
   return `<div class="tag-list">${badges}</div>`;
 }
 
+// The empty span keeps names aligned for links without an icon. The
+// `date_modified` query string busts the browser cache when the URL (and so
+// possibly the icon) changes, since the icon is served with a long max-age.
+function renderIcon(link) {
+  if (!link.has_icon) return '<span class="link-icon"></span>';
+  const v = encodeURIComponent(link.date_modified);
+  return `<img class="link-icon" src="/api/links/${link.id}/icon?v=${v}" alt="" loading="lazy">`;
+}
+
 function renderLinks(links) {
   const sorted = sortLinks(links);
   rowsBody.innerHTML = '';
@@ -493,7 +504,7 @@ function renderLinks(links) {
          <button type="button" class="danger delete-btn">Delete</button>`
       : '';
     tr.innerHTML = `
-      <td>${escapeHtml(link.name)}${renderTags(link.tags)}</td>
+      <td><div class="link-title">${renderIcon(link)}<span>${escapeHtml(link.name)}</span></div>${renderTags(link.tags)}</td>
       <td><a class="link-url" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.url)}</a></td>
       <td>${formatDate(link.date_modified)}</td>
       <td class="actions">${actions}</td>
@@ -502,6 +513,9 @@ function renderLinks(links) {
       tr.querySelector('.edit-btn').addEventListener('click', () => startEdit(link));
       tr.querySelector('.delete-btn').addEventListener('click', () => deleteLink(link));
     }
+    tr.querySelector('img.link-icon')?.addEventListener('error', (e) => {
+      e.target.style.visibility = 'hidden';
+    });
     tr.querySelectorAll('.tag-badge').forEach((badge) => {
       badge.addEventListener('click', () => setTagFilter(badge.dataset.tag));
     });

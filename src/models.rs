@@ -13,6 +13,11 @@ pub struct Link {
     pub date_modified: String,
     /// Tag names, lowercased and alphabetically sorted.
     pub tags: Vec<String>,
+    /// Whether a site icon is stored for this link, served at
+    /// `GET /api/links/:id/icon`. Icons are fetched in the background, so
+    /// this is `false` on a freshly created link (see [`crate::favicon`]).
+    #[serde(default)]
+    pub has_icon: bool,
 }
 
 /// Request body for creating or updating a link.

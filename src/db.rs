@@ -6,7 +6,7 @@
 
 use crate::models::Link;
 use chrono::Utc;
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, OptionalExtension, Result};
 
 /// Creates the `links` and `users` tables if they don't already exist.
 ///
@@ -51,6 +51,19 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             link_id INTEGER NOT NULL REFERENCES links(id),
             tag_id  INTEGER NOT NULL REFERENCES tags(id),
             PRIMARY KEY (link_id, tag_id)
+        )",
+        [],
+    )?;
+    // One row per link whose site icon has been looked up (see
+    // `crate::favicon`); `data` is NULL when the lookup found nothing, so
+    // icon-less sites aren't re-fetched on every startup. Deleted alongside
+    // the link, and when the link's URL changes, like `link_tags`.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS link_icons (
+            link_id         INTEGER PRIMARY KEY REFERENCES links(id),
+            content_type    TEXT,
+            data            BLOB,
+            fetched_at      TEXT NOT NULL
         )",
         [],
     )?;
@@ -162,7 +175,8 @@ pub fn list_links(conn: &Connection, search: Option<&str>, tag: Option<&str>) ->
         format!("WHERE {}", conditions.join(" AND "))
     };
     let sql = format!(
-        "SELECT id, name, url, date_modified FROM links {where_clause} ORDER BY date_modified DESC"
+        "SELECT id, name, url, date_modified, {HAS_ICON_SQL} FROM links {where_clause} \
+         ORDER BY date_modified DESC"
     );
 
     let mut stmt = conn.prepare(&sql)?;
@@ -201,6 +215,7 @@ pub fn create_link(conn: &Connection, name: &str, url: &str, tags: &[String]) ->
         url: url.to_string(),
         date_modified: now,
         tags: get_tags_for_link(conn, id)?,
+        has_icon: false,
     })
 }
 
@@ -222,6 +237,13 @@ pub fn update_link(
     tags: &[String],
 ) -> Result<Option<Link>> {
     let now = Utc::now().to_rfc3339();
+    // A new URL may well be a different site, so drop the old icon (and its
+    // "checked" marker) to have it looked up again.
+    conn.execute(
+        "DELETE FROM link_icons WHERE link_id = ?1
+         AND NOT EXISTS (SELECT 1 FROM links WHERE id = ?1 AND url = ?2)",
+        params![id, url],
+    )?;
     let updated = conn.execute(
         "UPDATE links SET name = ?1, url = ?2, date_modified = ?3 WHERE id = ?4",
         params![name, url, now, id],
@@ -236,10 +258,12 @@ pub fn update_link(
         url: url.to_string(),
         date_modified: now,
         tags: get_tags_for_link(conn, id)?,
+        has_icon: get_link_icon(conn, id)?.is_some(),
     }))
 }
 
-/// Deletes the link with the given `id`, along with its tag associations.
+/// Deletes the link with the given `id`, along with its tag associations
+/// and stored icon.
 ///
 /// Returns `true` if a row was deleted, `false` if no link with that `id`
 /// existed.
@@ -249,8 +273,76 @@ pub fn update_link(
 /// Returns an error if either delete statement fails to execute.
 pub fn delete_link(conn: &Connection, id: i64) -> Result<bool> {
     conn.execute("DELETE FROM link_tags WHERE link_id = ?1", params![id])?;
+    conn.execute("DELETE FROM link_icons WHERE link_id = ?1", params![id])?;
     let deleted = conn.execute("DELETE FROM links WHERE id = ?1", params![id])?;
     Ok(deleted > 0)
+}
+
+/// Records the result of an icon lookup for `link_id`: the icon's content
+/// type and bytes, or `None` for "looked, found nothing".
+///
+/// Only applies if the link still exists with `url` as its URL, so a fetch
+/// that finishes after the link was deleted or re-pointed elsewhere is
+/// discarded rather than attaching a stale icon.
+///
+/// # Errors
+///
+/// Returns an error if the statement fails to execute.
+pub fn set_link_icon(
+    conn: &Connection,
+    link_id: i64,
+    url: &str,
+    icon: Option<(&str, &[u8])>,
+) -> Result<()> {
+    let (content_type, data) = icon.unzip();
+    conn.execute(
+        "INSERT OR REPLACE INTO link_icons (link_id, content_type, data, fetched_at)
+         SELECT ?1, ?2, ?3, ?4 WHERE EXISTS (SELECT 1 FROM links WHERE id = ?1 AND url = ?5)",
+        params![link_id, content_type, data, Utc::now().to_rfc3339(), url],
+    )?;
+    Ok(())
+}
+
+/// Returns the stored icon (content type, bytes) for `link_id`, or `None`
+/// if it hasn't been looked up or none was found.
+///
+/// # Errors
+///
+/// Returns an error if the query fails.
+pub fn get_link_icon(conn: &Connection, link_id: i64) -> Result<Option<(String, Vec<u8>)>> {
+    conn.query_row(
+        "SELECT content_type, data FROM link_icons WHERE link_id = ?1 AND data IS NOT NULL",
+        params![link_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )
+    .optional()
+}
+
+/// Whether an icon lookup has been recorded for `link_id` (found or not).
+///
+/// # Errors
+///
+/// Returns an error if the query fails.
+pub fn icon_checked(conn: &Connection, link_id: i64) -> Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM link_icons WHERE link_id = ?1)",
+        params![link_id],
+        |row| row.get(0),
+    )
+}
+
+/// Returns `(id, url)` for every link whose icon has never been looked up.
+///
+/// # Errors
+///
+/// Returns an error if the query fails.
+pub fn links_missing_icon_check(conn: &Connection) -> Result<Vec<(i64, String)>> {
+    let mut stmt =
+        conn.prepare("SELECT id, url FROM links WHERE id NOT IN (SELECT link_id FROM link_icons)")?;
+    let rows = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<Vec<_>>>()?;
+    Ok(rows)
 }
 
 /// Replaces the set of tags associated with `link_id`.
@@ -304,8 +396,13 @@ fn get_tags_for_link(conn: &Connection, link_id: i64) -> Result<Vec<String>> {
     Ok(names)
 }
 
-/// Maps a `links` table row (in `id, name, url, date_modified` column order)
-/// into a [`Link`]. `tags` is left empty — callers that need tags populate
+/// SQL expression for [`Link::has_icon`], selected as the fifth column
+/// alongside a `links` row.
+const HAS_ICON_SQL: &str =
+    "EXISTS (SELECT 1 FROM link_icons i WHERE i.link_id = links.id AND i.data IS NOT NULL)";
+
+/// Maps a `links` table row (in `id, name, url, date_modified, has_icon`
+/// column order — see [`HAS_ICON_SQL`]) into a [`Link`]. `tags` is left empty — callers that need tags populate
 /// it separately via [`get_tags_for_link`].
 fn row_to_link(row: &rusqlite::Row) -> Result<Link> {
     Ok(Link {
@@ -314,5 +411,6 @@ fn row_to_link(row: &rusqlite::Row) -> Result<Link> {
         url: row.get(2)?,
         date_modified: row.get(3)?,
         tags: Vec::new(),
+        has_icon: row.get(4)?,
     })
 }

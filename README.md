@@ -20,6 +20,7 @@ Each link has:
 - **URL**
 - **Tags** (zero or more; optional)
 - **Date modified** (set automatically on create/update)
+- **Icon** (the site's favicon, fetched automatically — see below)
 
 ## Requirements
 
@@ -184,7 +185,10 @@ sliding window (successful or not). Once tripped, further attempts get
 account management (registration, password reset) beyond the single
 bootstrap admin, and the login rate limiter tracks state in memory per
 process (so it resets on restart and isn't shared across multiple server
-instances behind a load balancer). The self-signed certificate means clients
+instances behind a load balancer). Fetching link icons means the server
+makes outbound HTTP requests to whatever URLs are saved — including
+internal/private addresses — which is only a concern if you let people you
+don't trust add links. The self-signed certificate means clients
 have to explicitly trust it (or skip verification) — it's fine for personal/
 local use, but isn't a substitute for a CA-issued certificate (e.g. via
 Let's Encrypt behind a reverse proxy) if you're exposing linkrs to other
@@ -228,6 +232,16 @@ which browsers will need to re-trust).
   download every link as a Netscape bookmark file — the format browsers
   accept under "Import bookmarks from HTML". No login required, and the
   export always covers all links, ignoring the current search/tag filter.
+- **Icons**: each link's site icon is shown next to its name. It's fetched
+  by the server in the background after you add a link (or change its URL),
+  so it appears on the next page load rather than instantly. linkrs tries
+  `/favicon.ico` on the link's site, then any `<link rel="icon">` the page
+  declares; only PNG, ICO, GIF, JPEG, WebP, and BMP icons are kept (SVG is
+  refused, since icons are served from linkrs's own origin and an SVG can
+  carry script), up to 100 KB. Links that existed before this feature get
+  their icons fetched on the next startup, and a fetch that fails on a
+  network error (or a `429`/`5xx` response) is retried on the following
+  startup.
 - **Log in / out**: use the bar above the forms.
 - **Change password**: click "Change password" next to your username, enter
   your current password and a new one twice, and submit.
@@ -243,6 +257,7 @@ Endpoints marked 🔒 require an authenticated session cookie.
 | GET    | `/api/links?q=x`         | —                                            | List links where name or URL contains `x`          |
 | GET    | `/api/links?tag=x`       | —                                            | List links tagged `x` (case-insensitive); combine with `?q=` — a link must match both |
 | GET    | `/api/links/export`      | —                                            | Export all links as a Netscape bookmark HTML file (browser-importable) |
+| GET    | `/api/links/:id/icon`    | —                                            | The link's stored site icon; `404` if none (check `has_icon` in the list response) |
 | POST 🔒 | `/api/links`             | `{"name": "...", "url": "...", "tags": ["..."]}` | Create a link (`tags` optional, defaults to `[]`) |
 | PUT 🔒  | `/api/links/:id`         | `{"name": "...", "url": "...", "tags": ["..."]}` | Update a link, replacing its tags                 |
 | DELETE 🔒 | `/api/links/:id`       | —                                            | Delete a link                                     |
@@ -276,8 +291,9 @@ curl -k -b cookies.txt 'https://localhost:3000/api/links?tag=ai'
 src/
   main.rs      # server setup, routes, TLS cert bootstrap
   handlers.rs  # link CRUD HTTP handlers
+  favicon.rs   # background fetching of link site icons
   auth.rs      # login/logout/me handlers, session middleware, password hashing
-  state.rs     # shared AppState (db handle + in-memory session store)
+  state.rs     # shared AppState (db handle, in-memory session store, HTTP client)
   db.rs        # SQLite queries
   models.rs    # request/response types
 static/

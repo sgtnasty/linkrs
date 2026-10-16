@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-16
+
+### Added
+
+- Site icons next to link names. After a link is created (or its URL
+  changes), the server fetches the site's icon in the background — first
+  `/favicon.ico`, then any `<link rel="icon">` the page declares — and
+  stores it in a new `link_icons` table, served at the new public
+  `GET /api/links/:id/icon` endpoint. Links gain a `has_icon` field in API
+  responses. Only raster formats identified by their magic bytes (PNG, ICO,
+  GIF, JPEG, WebP, BMP) up to 100 KB are kept; SVG is always refused, since
+  icons are served from linkrs's own origin. Lookups that fail on a network
+  error or a `429`/`5xx` response are retried on the next startup. Existing
+  links get their icons fetched on the first startup after upgrading. The
+  schema change is additive (a new table), so existing databases keep
+  working.
+
+### Changed
+
+- `docker-compose.yml` now pins the `0.10.0` image tag.
+
 ## [0.9.0] - 2026-08-10
 
 ### Added
