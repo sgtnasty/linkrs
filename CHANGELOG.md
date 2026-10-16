@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-16
+
 ### Added
 
 - Site icons next to link names. After a link is created (or its URL
@@ -21,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   links get their icons fetched on the first startup after upgrading. The
   schema change is additive (a new table), so existing databases keep
   working.
+
+### Changed
+
+- `docker-compose.yml` now pins the `0.10.0` image tag.
 
 ## [0.9.0] - 2026-08-10
 
