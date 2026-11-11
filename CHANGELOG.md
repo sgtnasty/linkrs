@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A tag cloud to the right of the link list showing every tag in use, sized
+  by link count. Click tags to select several at once; the list shows links
+  carrying all selected tags (AND), combined with the search box. Selected
+  tags show in the filter bar, each removable on its own, plus "Clear" to
+  drop them all. Clicking a tag pill on a link now adds to the selection
+  instead of replacing it.
+- New public `GET /api/tags` endpoint returning `[{"name", "count"}]` for
+  every tag attached to at least one link.
+
+### Changed
+
+- `GET /api/links` accepts `tag` more than once (`?tag=a&tag=b`); a link
+  must carry every listed tag. A single `?tag=` works as before.
+
 ## [0.10.0] - 2026-10-16
 
 ### Added

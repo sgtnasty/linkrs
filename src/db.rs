@@ -4,7 +4,7 @@
 //! since the connection is shared across requests behind a mutex in
 //! [`crate::state::AppState`].
 
-use crate::models::Link;
+use crate::models::{Link, TagCount};
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension, Result};
 
@@ -140,16 +140,17 @@ pub fn update_password(conn: &Connection, username: &str, password_hash: &str) -
 }
 
 /// Lists links, optionally filtered by a case-insensitive substring match on
-/// name or URL and/or by an exact (normalized, see [`set_tags_for_link`]) tag
-/// name, ordered by most recently modified first. When both filters are
-/// given, links must match both (AND, not OR).
+/// name or URL and/or by exact (normalized, see [`set_tags_for_link`]) tag
+/// names, ordered by most recently modified first. All filters combine with
+/// AND: a link must match `search` and carry every tag in `tags`.
 ///
-/// Passing `None` (or an all-whitespace string) for either filter skips it.
+/// Passing `None` (or an all-whitespace string) for `search`, or an empty
+/// `tags`, skips that filter. Blank and duplicate tag names are ignored.
 ///
 /// # Errors
 ///
 /// Returns an error if the query fails to prepare or execute.
-pub fn list_links(conn: &Connection, search: Option<&str>, tag: Option<&str>) -> Result<Vec<Link>> {
+pub fn list_links(conn: &Connection, search: Option<&str>, tags: &[String]) -> Result<Vec<Link>> {
     let mut conditions = Vec::new();
     let mut sql_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
@@ -159,14 +160,27 @@ pub fn list_links(conn: &Connection, search: Option<&str>, tag: Option<&str>) ->
         sql_params.push(Box::new(pattern.clone()));
         sql_params.push(Box::new(pattern));
     }
-    if let Some(t) = tag.map(str::trim).filter(|t| !t.is_empty()) {
-        conditions.push(
+    // Normalized the same way `set_tags_for_link` stores them, and deduped so
+    // the `HAVING` count below can't demand more matches than exist.
+    let tag_names: std::collections::BTreeSet<String> = tags
+        .iter()
+        .map(|t| t.trim().to_lowercase())
+        .filter(|t| !t.is_empty())
+        .collect();
+    if !tag_names.is_empty() {
+        let placeholders = vec!["?"; tag_names.len()].join(", ");
+        conditions.push(format!(
             "id IN (SELECT lt.link_id FROM link_tags lt
                      JOIN tags tg ON tg.id = lt.tag_id
-                     WHERE tg.name = ?)"
-                .to_string(),
-        );
-        sql_params.push(Box::new(t.to_lowercase()));
+                     WHERE tg.name IN ({placeholders})
+                     GROUP BY lt.link_id
+                     HAVING COUNT(DISTINCT tg.id) = ?)"
+        ));
+        let n = tag_names.len() as i64;
+        for name in tag_names {
+            sql_params.push(Box::new(name));
+        }
+        sql_params.push(Box::new(n));
     }
 
     let where_clause = if conditions.is_empty() {
@@ -343,6 +357,31 @@ pub fn links_missing_icon_check(conn: &Connection) -> Result<Vec<(i64, String)>>
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<Result<Vec<_>>>()?;
     Ok(rows)
+}
+
+/// Returns every tag attached to at least one link, with its link count,
+/// sorted by name. The inner join skips orphaned `tags` rows, which
+/// [`set_tags_for_link`] deliberately leaves behind.
+///
+/// # Errors
+///
+/// Returns an error if the query fails.
+pub fn list_tags(conn: &Connection) -> Result<Vec<TagCount>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.name, COUNT(*) FROM tags t
+         JOIN link_tags lt ON lt.tag_id = t.id
+         GROUP BY t.id
+         ORDER BY t.name",
+    )?;
+    let tags = stmt
+        .query_map([], |row| {
+            Ok(TagCount {
+                name: row.get(0)?,
+                count: row.get(1)?,
+            })
+        })?
+        .collect::<Result<Vec<_>>>()?;
+    Ok(tags)
 }
 
 /// Replaces the set of tags associated with `link_id`.
