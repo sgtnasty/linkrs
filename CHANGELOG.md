@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-11
+
 ### Added
 
 - A tag cloud to the right of the link list showing every tag in use, sized
@@ -22,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `GET /api/links` accepts `tag` more than once (`?tag=a&tag=b`); a link
   must carry every listed tag. A single `?tag=` works as before.
+- `docker-compose.yml` now pins the `1.0.0` image tag.
 
 ## [0.10.0] - 2026-10-16
 
