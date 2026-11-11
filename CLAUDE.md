@@ -59,7 +59,7 @@ Module layout (`src/`):
 Routes are built as two separate `Router`s and merged:
 - `protected` — `POST /api/links`, `PUT`/`DELETE /api/links/:id` — has
   `auth::require_auth` mounted via `route_layer`.
-- `public` — `/`, `GET /api/links`, `/api/login`, `/api/logout`, `/api/me`.
+- `public` — `/`, `GET /api/links`, `GET /api/tags`, `/api/login`, `/api/logout`, `/api/me`.
 
 When adding a new mutating link endpoint, mount it on `protected`, not
 `public`. Reading/searching links must stay open to anyone (this is a

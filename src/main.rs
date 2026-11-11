@@ -97,6 +97,7 @@ async fn main() {
         .route("/api/links", get(handlers::list_links))
         .route("/api/links/export", get(handlers::export_links))
         .route("/api/links/:id/icon", get(handlers::link_icon))
+        .route("/api/tags", get(handlers::list_tags))
         .route("/api/login", post(auth::login))
         .route("/api/logout", post(auth::logout))
         .route("/api/me", get(auth::me));

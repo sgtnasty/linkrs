@@ -180,6 +180,7 @@ dependencies = [
  "multer",
  "pin-project-lite",
  "serde",
+ "serde_html_form",
  "tower",
  "tower-layer",
  "tower-service",
@@ -901,7 +902,7 @@ dependencies = [
 
 [[package]]
 name = "linkrs"
-version = "0.10.0"
+version = "1.0.0"
 dependencies = [
  "argon2",
  "axum",
@@ -1477,6 +1478,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.3",
+]
+
+[[package]]
+name = "serde_html_form"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2f2d7ff8a2140333718bb329f5c40fc5f0865b84c426183ce14c97d2ab8154f"
+dependencies = [
+ "form_urlencoded",
+ "indexmap",
+ "itoa",
+ "ryu",
+ "serde_core",
 ]
 
 [[package]]

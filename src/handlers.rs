@@ -2,14 +2,17 @@
 //!
 //! `create_link`, `update_link`, and `delete_link` are mounted behind the
 //! [`crate::auth::require_auth`] middleware in `main.rs`; `index`,
-//! `list_links`, `export_links`, and `link_icon` are public.
+//! `list_links`, `list_tags`, `export_links`, and `link_icon` are public.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse},
     Json,
 };
+// axum-extra's `Query` (unlike axum's) accepts repeated keys, which
+// `?tag=a&tag=b` relies on.
+use axum_extra::extract::Query;
 
 use crate::db;
 use crate::favicon;
@@ -37,7 +40,8 @@ pub async fn favicon() -> impl IntoResponse {
     )
 }
 
-/// `GET /api/links` — lists all links, or those matching `?q=` if present.
+/// `GET /api/links` — lists all links, or those matching `?q=` and every
+/// (repeatable) `?tag=` if present.
 ///
 /// Public: does not require authentication.
 pub async fn list_links(
@@ -45,8 +49,20 @@ pub async fn list_links(
     Query(params): Query<SearchQuery>,
 ) -> impl IntoResponse {
     let conn = state.db.lock().unwrap();
-    match db::list_links(&conn, params.q.as_deref(), params.tag.as_deref()) {
+    match db::list_links(&conn, params.q.as_deref(), &params.tag) {
         Ok(links) => Json(links).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `GET /api/tags` — lists every tag that's on at least one link, with its
+/// link count, alphabetically. Drives the UI's tag cloud.
+///
+/// Public, like [`list_links`].
+pub async fn list_tags(State(state): State<AppState>) -> impl IntoResponse {
+    let conn = state.db.lock().unwrap();
+    match db::list_tags(&conn) {
+        Ok(tags) => Json(tags).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
@@ -89,7 +105,7 @@ pub async fn link_icon(State(state): State<AppState>, Path(id): Path<i64>) -> im
 /// than rendering it.
 pub async fn export_links(State(state): State<AppState>) -> impl IntoResponse {
     let conn = state.db.lock().unwrap();
-    match db::list_links(&conn, None, None) {
+    match db::list_links(&conn, None, &[]) {
         Ok(links) => (
             [
                 (header::CONTENT_TYPE, "text/html; charset=utf-8"),

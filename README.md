@@ -220,9 +220,13 @@ which browsers will need to re-trust).
 - **Tag a link**: enter comma-separated tags in the Tags field when adding or
   editing a link. Tags are trimmed and lowercased, so `Rust` and `rust` are
   the same tag.
-- **Filter by tag**: click a tag pill under any link to filter the list down
-  to links with that tag (combines with the search box); click "Clear" to
-  remove the filter.
+- **Filter by tag**: the Tags cloud to the right of the links lists every
+  tag in use, sized by how many links carry it. Click tags there (or the tag
+  pills under any link) to select one or more; the list narrows to links
+  carrying *all* selected tags, combined with the search box. Click a
+  selected tag again (or its × in the filter bar) to deselect it, or "Clear"
+  to remove every tag filter. On narrow screens the cloud sits below the
+  list.
 - **Sort**: click a column header (Name, URL, or Modified) to sort the list
   by it; click the same header again to reverse the direction.
 - **Edit**: click "Edit" on a row to load it into the form, make changes, and
@@ -255,7 +259,8 @@ Endpoints marked 🔒 require an authenticated session cookie.
 |--------|--------------------------|----------------------------------------------|--------------------------------------------------|
 | GET    | `/api/links`             | —                                            | List all links, newest modified first             |
 | GET    | `/api/links?q=x`         | —                                            | List links where name or URL contains `x`          |
-| GET    | `/api/links?tag=x`       | —                                            | List links tagged `x` (case-insensitive); combine with `?q=` — a link must match both |
+| GET    | `/api/links?tag=x`       | —                                            | List links tagged `x` (case-insensitive). Repeatable (`?tag=x&tag=y`) — a link must carry every listed tag; combine with `?q=` — a link must match that too |
+| GET    | `/api/tags`              | —                                            | Every tag on at least one link, with its link count: `[{"name": "rust", "count": 3}]`, alphabetical |
 | GET    | `/api/links/export`      | —                                            | Export all links as a Netscape bookmark HTML file (browser-importable) |
 | GET    | `/api/links/:id/icon`    | —                                            | The link's stored site icon; `404` if none (check `has_icon` in the list response) |
 | POST 🔒 | `/api/links`             | `{"name": "...", "url": "...", "tags": ["..."]}` | Create a link (`tags` optional, defaults to `[]`) |

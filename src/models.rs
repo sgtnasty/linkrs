@@ -36,9 +36,18 @@ pub struct LinkInput {
 pub struct SearchQuery {
     /// Optional case-insensitive substring to filter links by name or URL.
     pub q: Option<String>,
-    /// Optional tag name to filter by (case-insensitive; combined with `q`
-    /// via AND when both are present).
-    pub tag: Option<String>,
+    /// Tag names to filter by, from zero or more repeated `?tag=` keys
+    /// (case-insensitive). A link must carry every listed tag, and match
+    /// `q` too when that's present (AND throughout).
+    #[serde(default)]
+    pub tag: Vec<String>,
+}
+
+/// A tag in use by at least one link, with how many links carry it.
+#[derive(Debug, Serialize)]
+pub struct TagCount {
+    pub name: String,
+    pub count: i64,
 }
 
 /// Request body for `/api/login`.
