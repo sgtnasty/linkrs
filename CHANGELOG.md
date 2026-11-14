@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-14
+
+### Security
+
+- Updated dependencies to fix every advisory `cargo audit` reported:
+  - `rusqlite` 0.31 → 0.42, which updates the bundled SQLite
+    (`libsqlite3-sys` 0.28 → 0.40) for RUSTSEC-2026-0459.
+  - `rustls` 0.23.42 → 0.23.46 for RUSTSEC-2026-0285, RUSTSEC-2026-0346,
+    RUSTSEC-2026-0348 and RUSTSEC-2026-0349, with `rustls-webpki`
+    0.103.13 → 0.103.17 for RUSTSEC-2026-0382.
+  - `webpki-roots` 1.0.9 → 1.0.12 for RUSTSEC-2026-0381.
+  - `h2` 0.4.15 → 0.4.20 for RUSTSEC-2026-0258.
+  - `tokio` 1.53.1 → 1.54.1 for RUSTSEC-2026-0386.
+
+### Changed
+
+- `docker-compose.yml` now pins the `1.0.1` image tag.
+
 ## [1.0.0] - 2026-11-11
 
 ### Added
