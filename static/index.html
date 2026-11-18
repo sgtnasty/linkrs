@@ -46,7 +46,11 @@
   h1 {
     font-size: 1.5rem;
     margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
   }
+  h1 .logo { width: 2rem; height: 2rem; border-radius: 0.4rem; }
   .card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -198,7 +202,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>linkrs</h1>
+  <h1><img class="logo" src="/favicon.ico" alt="">linkrs</h1>
 
   <div class="auth-bar">
     <span>
